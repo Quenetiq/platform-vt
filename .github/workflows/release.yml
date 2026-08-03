@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.1.0). Defaults to the tag or package.json version.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -33,10 +39,17 @@ jobs:
       - name: Build library
         run: npx ng build platform-vt
 
-      - name: Sync version from tag
+      - name: Resolve version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          VERSION=${VERSION#v}
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION=$(node -p "require('./projects/platform-vt/package.json').version")
+          fi
+          echo "Publishing version: $VERSION"
           node -e "const fs=require('fs');const p='dist/platform-vt/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')" "$VERSION"
 
       - name: Publish to npm
