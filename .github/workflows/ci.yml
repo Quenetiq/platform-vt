@@ -29,7 +29,7 @@ jobs:
         run: npx ng lint platform-vt
 
       - name: Build library
-        run: ng build platform-vt
+        run: npx ng build platform-vt
 
       - name: Build demo
         run: npx ng build demo --configuration=development
@@ -62,7 +62,7 @@ jobs:
       - run: npm ci
 
       - name: Build library
-        run: ng build platform-vt
+        run: npx ng build platform-vt
 
       - name: Build docs
         run: npx compodoc -c .compodocrc.yaml

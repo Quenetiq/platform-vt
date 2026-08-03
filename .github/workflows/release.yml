@@ -31,7 +31,7 @@ jobs:
         run: npx ng test platform-vt --no-watch
 
       - name: Build library
-        run: ng build platform-vt
+        run: npx ng build platform-vt
 
       - name: Sync version from tag
         run: |
