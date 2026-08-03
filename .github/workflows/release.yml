@@ -40,6 +40,7 @@ jobs:
         run: npx ng build platform-vt
 
       - name: Resolve version
+        id: version
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
@@ -51,6 +52,7 @@ jobs:
           fi
           echo "Publishing version: $VERSION"
           node -e "const fs=require('fs');const p='dist/platform-vt/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')" "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
         # The `./` prefix matters: without it npm parses "dist/platform-vt"
@@ -62,4 +64,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
           generate_release_notes: true
