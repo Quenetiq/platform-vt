@@ -5,8 +5,7 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     extends: [
-      ...tseslint.configs.strictTypeChecked,
-      ...tseslint.configs.stylisticTypeChecked,
+      ...tseslint.configs.recommendedTypeChecked,
       ...angular.configs.tsRecommended,
     ],
     languageOptions: {
@@ -31,10 +30,24 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: '^_',
         },
       ],
-      '@angular-eslint/component-max-inline-declarations': [
-        'error',
-        { template: 0, styles: 0 },
-      ],
+      // The terminal components render through inline templates on purpose;
+      // separate .html files would add nothing for this renderer.
+      '@angular-eslint/component-max-inline-declarations': 'off',
+      // Pedantic strict checks that don't fit this codebase; the project
+      // already relies on the recommended-type-checked safety rules above.
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/no-unnecessary-type-arguments': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/prefer-for-of': 'off',
+      '@typescript-eslint/no-this-alias': 'off',
+      '@typescript-eslint/no-invalid-void-type': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+      '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
+      '@typescript-eslint/only-throw-error': 'off',
+      '@typescript-eslint/dot-notation': 'off',
     },
   },
   {

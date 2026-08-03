@@ -105,11 +105,9 @@ export function appendVTChild(parent: VTNode, child: VTNode): void {
   child.previousSibling = parent.children[parent.children.length - 1] ?? null;
   child.nextSibling = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (child.previousSibling) {
     child.previousSibling.nextSibling = child;
   }
-
   parent.children.push(child);
   markDirty(parent);
 }
@@ -141,7 +139,6 @@ export function insertVTBefore(
   newChild.previousSibling = parent.children[index - 1] ?? null;
   newChild.nextSibling = refChild;
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (newChild.previousSibling) {
     newChild.previousSibling.nextSibling = newChild;
   }

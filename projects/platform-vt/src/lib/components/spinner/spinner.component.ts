@@ -1,4 +1,4 @@
-import { Component, input, signal, inject, effect, type OnDestroy, ElementRef, RendererFactory2 } from '@angular/core';
+import { Component, input, signal, inject, effect, type OnDestroy, ElementRef } from '@angular/core';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
 
 const FRAMES: Record<string, string[]> = {

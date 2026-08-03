@@ -26,7 +26,7 @@ export const STYLE_READER = new InjectionToken<VTStyleReader>(
   'VT_STYLE_READER',
   {
     providedIn: 'root',
-    factory: () => inject(StyleRegistry),
+    factory: (): StyleRegistry => inject(StyleRegistry),
   },
 );
 

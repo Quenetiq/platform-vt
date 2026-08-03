@@ -80,7 +80,6 @@ export class ButtonComponent {
     effect(() => {
       const el = this.elementRef.nativeElement as HTMLElement;
       const lbl = this.label();
-      const variant = this.variant();
       el.setAttribute('display', 'block');
       el.setAttribute('content', lbl);
       el.textContent = lbl;

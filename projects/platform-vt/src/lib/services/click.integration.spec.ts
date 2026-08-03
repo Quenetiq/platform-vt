@@ -14,7 +14,6 @@ import type { VTClickEvent } from './sgr-mouse';
 @Component({
   selector: 'vt-click-test-app',
   imports: [ClickableDirective],
-  // eslint-disable-next-line @angular-eslint/component-max-inline-declarations
   template: `
     <div
       vt-clickable
