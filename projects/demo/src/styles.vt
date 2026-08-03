@@ -1,0 +1,49 @@
+/* Terminal Assistant theme - VT stylesheet DSL */
+
+/* Dark blue-tinted canvas: the whole terminal area gets a solid background so
+   text stays readable on any terminal scheme. */
+vt-box {
+  background-color: #0d1117;
+}
+
+/* Base text is bright so it stays readable on any terminal background */
+vt-text {
+  color: #e6edf3;
+}
+
+vt-caret {
+  color: #58a6ff;
+}
+
+vt-input {
+  color: #e6edf3;
+}
+
+vt-spinner {
+  color: #58a6ff;
+}
+
+/* Message blocks get a lighter, blue-tinted surface than the canvas, with
+   breathing room and rounded corners. */
+.block {
+  background-color: #1c2128;
+  padding: 1 3;
+  border-radius: 1;
+}
+
+/* The user's own messages get a blue accent border on the left. */
+.user {
+  background-color: #1c2128;
+  padding: 1 3;
+  border-left: thick;
+  color: #58a6ff;
+}
+
+/* Input field is a slightly darker, recessed surface with a slate accent
+   border on the left (distinct from the user messages' blue border). */
+.input {
+  background-color: #161b22;
+  padding: 1 3;
+  border-left: thick;
+  color: #8b949e;
+}

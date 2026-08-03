@@ -1,0 +1,24 @@
+<nav class="sidebar-nav">
+  @for (group of groups; track group.label) {
+    <div class="sidebar-group">
+      <button class="group-toggle" (click)="toggleGroup(group.label)">
+        <span class="group-arrow" [class.open]="openGroups()[group.label]">▸</span>
+        {{ group.label }}
+      </button>
+      @if (openGroups()[group.label]) {
+        <ul class="group-items">
+          @for (item of group.items; track item.slug) {
+            <li>
+              <a
+                class="sidebar-link"
+                [routerLink]="['/', item.slug]"
+                routerLinkActive="active">
+                {{ item.title }}
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</nav>

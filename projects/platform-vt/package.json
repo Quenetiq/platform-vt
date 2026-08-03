@@ -1,0 +1,15 @@
+{
+  "name": "@quenetiq/platform-vt",
+  "version": "0.0.1",
+  "description": "Custom Angular Renderer2 for terminal UI applications",
+  "peerDependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/platform-server": "^22.0.0",
+    "rxjs": "^7.8.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

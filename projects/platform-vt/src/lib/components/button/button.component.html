@@ -1,0 +1,12 @@
+<vt-box
+  display="inline"
+  [padding]="[0, 1]"
+  [style.backgroundColor]="isFocused() ? (variant() === 'danger' ? 'red' : variant() === 'primary' ? 'blue' : 'gray') : 'none'"
+>
+  <vt-text
+    [style.color]="isFocused() ? 'white' : (variant() === 'danger' ? 'red' : variant() === 'primary' ? 'blue' : 'gray')"
+    [style.fontWeight]="isFocused() ? 'bold' : 'normal'"
+  >
+    {{ label() }}
+  </vt-text>
+</vt-box>

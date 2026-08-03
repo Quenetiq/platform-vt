@@ -1,0 +1,8 @@
+name: "@quenetiq/platform-vt"
+output: docs/compodoc
+tsconfig: projects/platform-vt/tsconfig.lib.json
+excludes:
+  - node_modules
+  - dist
+  - "**/*.spec.ts"
+  - projects/demo

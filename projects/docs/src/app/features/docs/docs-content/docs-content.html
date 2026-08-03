@@ -1,0 +1,13 @@
+<div class="docs-content">
+  @if (loading()) {
+    <div class="docs-loading">Loading...</div>
+  } @else if (error()) {
+    <div class="docs-error">
+      <h2>404</h2>
+      <p>{{ error() }}</p>
+      <a routerLink="/getting-started">Go to Getting Started</a>
+    </div>
+  } @else {
+    <article class="docs-article" [innerHTML]="contentHtml()"></article>
+  }
+</div>

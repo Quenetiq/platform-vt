@@ -1,0 +1,148 @@
+.docs-content {
+  padding: 32px 0;
+}
+
+.docs-loading {
+  color: var(--text-secondary);
+  padding: 48px 0;
+  text-align: center;
+}
+
+.docs-error {
+  padding: 48px 0;
+  text-align: center;
+
+  h2 {
+    font-size: 3rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  p {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+}
+
+.docs-article {
+  :deep(.md-heading) {
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: var(--text);
+    scroll-margin-top: 24px;
+  }
+
+  :deep(.md-h2) {
+    font-size: 1.5rem;
+    font-weight: 600;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  :deep(.md-h3) {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  :deep(.md-h4) {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  :deep(.md-p) {
+    margin-bottom: 16px;
+    line-height: 1.7;
+  }
+
+  :deep(.md-code-block) {
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  :deep(.md-code-lang) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    border-radius: 0 8px 0 4px;
+    font-family: var(--font-mono);
+  }
+
+  :deep(.md-pre) {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+  }
+
+  :deep(.md-code) {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    line-height: 1.6;
+  }
+
+  :deep(.md-ol),
+  :deep(.md-ul) {
+    margin-bottom: 16px;
+    padding-left: 24px;
+  }
+
+  :deep(.md-ol li),
+  :deep(.md-ul li) {
+    margin-bottom: 4px;
+    line-height: 1.7;
+  }
+
+  :deep(.md-table-wrap) {
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+
+  :deep(.md-table) {
+    width: 100%;
+    border-collapse: collapse;
+
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+    }
+  }
+
+  :deep(.md-blockquote) {
+    border-left: 3px solid var(--accent);
+    padding-left: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  :deep(.md-hr) {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  :deep(code) {
+    font-family: var(--font-mono);
+    background: var(--bg-tertiary);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.875em;
+  }
+
+  :deep(a) {
+    color: var(--accent);
+  }
+
+  :deep(strong) {
+    font-weight: 600;
+  }
+}
