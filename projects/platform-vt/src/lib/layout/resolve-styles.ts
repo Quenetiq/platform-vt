@@ -14,6 +14,17 @@ export function resolveFlexStyles(node: VTNode): FlexStyles {
   const styles = { ...DEFAULT_FLEX_STYLES };
   const s = node.styles;
 
+  const pos = s.get('position');
+  if (pos === 'relative' || pos === 'absolute') {
+    styles.position = pos;
+  }
+
+  const left = s.get('left');
+  if (typeof left === 'number') styles.left = left;
+
+  const top = s.get('top');
+  if (typeof top === 'number') styles.top = top;
+
   const flexDir = s.get('flexDirection');
   if (flexDir === 'row' || flexDir === 'column') {
     styles.flexDirection = flexDir;

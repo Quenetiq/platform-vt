@@ -1,64 +1,196 @@
-# PlatformVt
+# @quenetiq/platform-vt
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.0.
+A terminal UI framework for Angular. Write Angular templates with signals,
+standalone components and DI — the library renders them as interactive
+terminal applications using ANSI escape sequences.
 
-## Code scaffolding
+It runs the app in a DOM (jsdom), lays out the tree with a custom flexbox
+engine, and paints it to the terminal. Everything is signal-based and
+zoneless: `signal()`, `computed()`, `effect()`, `input()` / `output()`.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Features
 
-```bash
-ng generate component component-name
-```
+- **Angular 22** — standalone components, zoneless change detection, signal inputs/outputs
+- **Flexbox layout engine** — `flexDirection`, `justifyContent`, `alignItems`, `gap`, `grow/shrink`, padding, margins, wrapping, scrolling, absolute positioning
+- **Interactive components** — `vt-button`, `vt-input`, `vt-checkbox`, `vt-select`, `vt-list`
+- **Display components** — `vt-box`, `vt-text`, `vt-table`, `vt-progress`, `vt-spinner`, `vt-scroll`, `vt-separator`, `vt-newline`, `vt-spacer`, `vt-caret`
+- **Services** — terminal size, rendering, keyboard input, focus navigation, mouse/click handling
+- **Theming** — a stylesheet parser + theme registry (`provideStyles`)
+- **Overlay (CDK)** — floating panels rendered on top of the app, with hover tooltips
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the library, run:
-
-```bash
-ng build platform-vt
-```
-
-This command will compile your project, and the build artifacts will be placed in the `dist/` directory.
-
-### Publishing the Library
-
-Once the project is built, you can publish your library by following these steps:
-
-1. Navigate to the `dist` directory:
-
-   ```bash
-   cd dist/platform-vt
-   ```
-
-2. Run the `npm publish` command to publish your library to the npm registry:
-   ```bash
-   npm publish
-   ```
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Installation
 
 ```bash
-ng test
+npm install @quenetiq/platform-vt
 ```
 
-## Running end-to-end tests
+Peer dependencies: `@angular/core` ≥ 22, `@angular/common` ≥ 22, `@angular/platform-server`, `rxjs`.
 
-For end-to-end (e2e) testing, run:
+## Quick start
+
+```typescript
+// app.ts
+import { Component } from '@angular/core';
+import { BoxComponent, TextComponent, ButtonComponent } from '@quenetiq/platform-vt';
+
+@Component({
+  selector: 'app-root',
+  imports: [BoxComponent, TextComponent, ButtonComponent],
+  template: `
+    <vt-box flexDirection="column" [gap]="1" [padding]="1" border="single">
+      <vt-text color="cyan" fontWeight="bold">Hello terminal!</vt-text>
+      <vt-button label="Click me" (clicked)="onClick()"></vt-button>
+      <vt-text color="green" [content]="message()"></vt-text>
+    </vt-box>
+  `,
+})
+export class App {
+  message = 'Press the button';
+
+  onClick(): void {
+    this.message = 'Button clicked!';
+  }
+}
+```
+
+```typescript
+// main.ts
+import { bootstrapTerminal } from '@quenetiq/platform-vt';
+import { App } from './app';
+
+bootstrapTerminal(App, {
+  terminalBackground: 'black',
+  terminalForeground: 'bright-white',
+});
+```
+
+Run it:
 
 ```bash
-ng e2e
+npx tsx main.ts
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Components
 
-## Additional Resources
+### Layout
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+| Component | Selector | Purpose |
+|---|---|---|
+| BoxComponent | `vt-box` | Flex container (direction, justify, align, gap, padding, border, colors) |
+| TextComponent | `vt-text` | Inline/block text (`content` input, color, weight, wrap) |
+| NewlineComponent | `vt-newline` | Vertical spacing (`count`) |
+| SpacerComponent | `vt-spacer` | Fills remaining flex space |
+| SeparatorComponent | `vt-separator` | Horizontal line (`─`, `═`, …) |
+| ScrollViewComponent | `vt-scroll` | Fixed-size scrollable viewport (chat-style bottom pinning) |
+
+### Interactive
+
+| Component | Selector | Inputs / Outputs |
+|---|---|---|
+| ButtonComponent | `vt-button` | `label`, `variant`, `autofocus` · `clicked` |
+| InputComponent | `vt-input` | `placeholder`, `value`, `maxLength`, `mask`, `flexGrow` · `valueChange`, `submitted` |
+| CheckboxComponent | `vt-checkbox` | `label`, `checked`, `autofocus` · `checkedChange` |
+| SelectComponent | `vt-select` | `options`, `autofocus` · `valueChange` |
+| ListComponent | `vt-list` | `items`, `autofocus` · `selectedChange`, `activated` |
+
+### Display
+
+| Component | Selector | Purpose |
+|---|---|---|
+| TableComponent | `vt-table` | Bordered table from `columns` / `rows` |
+| ProgressComponent | `vt-progress` | Progress bar (`value`, `max`, `showPercent`) |
+| SpinnerComponent | `vt-spinner` | Loading animation (`type`, `label`) |
+| CaretComponent | `vt-caret` | Blinking cursor glyph |
+| ClickableDirective | `[vt-clickable]` | Make any element mouse-clickable (`clicked`) |
+
+## Overlay & tooltips (CDK)
+
+Overlays render floating panels on top of the app. The terminal has no real
+z-index — later layers simply paint over earlier ones, and overlays live in
+their own layer above the application.
+
+Register the overlay providers in `bootstrapTerminal`:
+
+```typescript
+import { bootstrapTerminal, provideOverlay } from '@quenetiq/platform-vt';
+
+bootstrapTerminal(App, {
+  providers: [provideOverlay()],
+});
+```
+
+### Tooltips
+
+```html
+<vt-box vtTooltip="Extra info" [position]="'top'" [offset]="1">
+  Hover me
+</vt-box>
+```
+
+The tooltip appears while the mouse cursor is over the element and hides when
+it leaves.
+
+### Low-level overlay API
+
+```typescript
+import { inject } from '@angular/core';
+import { OverlayService } from '@quenetiq/platform-vt';
+
+export class MyComponent {
+  private readonly overlay = inject(OverlayService);
+
+  showHint() {
+    const ref = this.overlay.create();
+    ref.attach(MyHintComponent, { text: 'hello' }); // inputs set at creation
+    ref.setPositionFromRect(anchorRect, 'bottom', 0, 1);
+    // ...
+    ref.dispose();
+  }
+}
+```
+
+`OverlayRef` API: `attach(component, inputs?)`, `setPosition(x, y)`,
+`setPositionFromRect(rect, placement, offsetX, offsetY)`, `detach()`,
+`dispose()`, `hasAttached()`.
+
+Anchor rectangles come from `RenderService.getElementRect(element)`; the
+element currently under the cursor is `RenderService.getElementAtPoint(x, y)`.
+
+## Styling
+
+Inline attributes on components (`color`, `backgroundColor`, `border`,
+`flexDirection`, …) drive the renderer. Global styles can be provided with
+`provideStyles`:
+
+```typescript
+import { bootstrapTerminal, provideStyles } from '@quenetiq/platform-vt';
+
+bootstrapTerminal(App, {
+  providers: [provideStyles({ stylesUrl: './styles.vt' })],
+});
+```
+
+## Services
+
+| Service | Purpose |
+|---|---|
+| `TerminalService` | Terminal size as signals (`columns`, `rows`) |
+| `RenderService` | Schedules and flushes renders; layout hit-testing |
+| `InputService` | Parses raw stdin into key events (`keyEvents`) |
+| `FocusService` | Tab / Shift+Tab focus navigation |
+| `MouseService` | SGR mouse events (press, release, move, wheel) |
+| `ClickService` | Click hit-testing and dispatch |
+
+## Development
+
+```bash
+npm install
+npm run build       # build the library
+npm test            # unit tests (vitest)
+npm run lint        # eslint
+npm run start       # run the demo in the terminal
+```
+
+## License
+
+MIT

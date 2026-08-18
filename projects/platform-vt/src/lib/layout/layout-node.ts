@@ -27,6 +27,12 @@ export interface LayoutNode {
  * were resolved during layout).
  */
 export interface FlexStyles {
+  /** Positioning mode: in-flow (`'relative'`) or taken out of the flow (`'absolute'`). */
+  position: 'relative' | 'absolute';
+  /** Left offset (columns) for absolutely positioned nodes. */
+  left: number;
+  /** Top offset (rows) for absolutely positioned nodes. */
+  top: number;
   /** Flex direction: `'row'` (left-to-right) or `'column'` (top-to-bottom). */
   flexDirection: 'row' | 'column';
   /** Main-axis alignment. */
@@ -95,6 +101,9 @@ export interface Spacing {
  * Default flexbox styles applied when no styles are set on a VTNode.
  */
 export const DEFAULT_FLEX_STYLES: FlexStyles = {
+  position: 'relative',
+  left: 0,
+  top: 0,
   flexDirection: 'row',
   justifyContent: 'flex-start',
   alignItems: 'stretch',

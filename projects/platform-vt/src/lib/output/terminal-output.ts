@@ -13,6 +13,19 @@ interface ClipRect {
 }
 
 /**
+ * Options controlling a single {@link TerminalOutput.render} pass.
+ */
+export interface TerminalRenderOptions {
+  /**
+   * Whether to clear the screen and reset the cursor before painting.
+   * Defaults to `true`. Pass `false` when painting a layer on top of a
+   * previous render (e.g. overlays): the layer then paints over the
+   * existing screen content, which gives overlays their z-order.
+   */
+  clear?: boolean;
+}
+
+/**
  * Renders a layout tree to ANSI escape sequences and writes them to stdout.
  *
  * This is the final stage of the render pipeline:
@@ -31,13 +44,17 @@ export class TerminalOutput {
    * @param layoutTree - The positioned layout tree from FlexLayout.
    * @param _columns - Terminal width (used for future viewport clipping).
    * @param _rows - Terminal height (used for future viewport clipping).
+   * @param options - Render options, e.g. skipping the screen clear.
    */
-  render(layoutTree: LayoutNode, _columns: number, _rows: number): void {
+  render(layoutTree: LayoutNode, _columns: number, _rows: number, options?: TerminalRenderOptions): void {
     this.buffer = [];
 
-    this.buffer.push(cursor.hide());
-    this.buffer.push(erase.screen());
-    this.buffer.push(cursor.moveTo(0, 0));
+    const clear = options?.clear ?? true;
+    if (clear) {
+      this.buffer.push(cursor.hide());
+      this.buffer.push(erase.screen());
+      this.buffer.push(cursor.moveTo(0, 0));
+    }
 
     this.renderNode(layoutTree, '', null);
 

@@ -13,9 +13,14 @@ import {
   type ClickTracker,
 } from './sgr-mouse';
 
-/** Escape sequences used to enable/disable SGR mouse reporting. */
-const ENABLE_MOUSE = '\x1b[?1006h\x1b[?1002h';
-const DISABLE_MOUSE = '\x1b[?1002l\x1b[?1006l';
+/** Escape sequences used to enable/disable SGR mouse reporting.
+ *
+ * `?1006` enables SGR extended coordinates; `?1002` enables button-event
+ * tracking (motion while a button is held); `?1003` adds all-motion tracking
+ * so hover states (e.g. tooltips) work without a pressed button.
+ */
+const ENABLE_MOUSE = '\x1b[?1006h\x1b[?1002h\x1b[?1003h';
+const DISABLE_MOUSE = '\x1b[?1003l\x1b[?1002l\x1b[?1006l';
 
 /**
  * Enables terminal mouse reporting and emits parsed mouse events.

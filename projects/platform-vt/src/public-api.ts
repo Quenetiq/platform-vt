@@ -70,3 +70,12 @@ export { ProgressComponent } from './lib/components/progress/progress.component'
 export { ListComponent } from './lib/components/list/list.component';
 export { TableComponent } from './lib/components/table/table.component';
 export { ScrollViewComponent } from './lib/components/scroll/scroll.component';
+export { TooltipComponent } from './lib/components/tooltip/tooltip.component';
+export { TooltipDirective } from './lib/components/tooltip/tooltip.directive';
+export type { TooltipPosition } from './lib/components/tooltip/tooltip.directive';
+
+// Overlay (CDK)
+export { OverlayContainer } from './lib/overlay/overlay-container';
+export { OverlayService, provideOverlay } from './lib/overlay/overlay.service';
+export { OverlayRef } from './lib/overlay/overlay-ref';
+export type { TerminalRenderOptions } from './lib/output/terminal-output';

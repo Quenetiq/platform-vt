@@ -146,12 +146,25 @@ export class FlexLayout {
     // natural sizes; overflow is clipped and offset by scrollTop.
     const isScrollContainer = vtNode.styles.get('overflow') === 'scroll';
 
-    // Resolve flex-basis for each child
+    // Absolutely positioned children are taken out of the flow: they do not
+    // contribute to basis/grow/shrink totals and are laid out at (left, top)
+    // relative to this node's content box, on top of in-flow content.
+    const inFlowChildren: VTNode[] = [];
+    const absoluteChildren: VTNode[] = [];
+    for (const child of vtNode.children) {
+      if (resolveFlexStyles(child).position === 'absolute') {
+        absoluteChildren.push(child);
+      } else {
+        inFlowChildren.push(child);
+      }
+    }
+
+    // Resolve flex-basis for each in-flow child
     const childLayouts: LayoutNode[] = [];
     const mainSizes: number[] = [];
     let totalGap = 0;
 
-    for (const child of vtNode.children) {
+    for (const child of inFlowChildren) {
       const cs = resolveFlexStyles(child);
       const basis = this.resolveBasis(child, cs, isRow ? boxW : boxH, isRow, false, this.childWrapWidth(cs, boxW));
       mainSizes.push(basis);
@@ -162,40 +175,40 @@ export class FlexLayout {
     const totalMain = mainSizes.reduce((a, b) => a + b, 0) + totalGap;
     const freeSpace = mainSize - totalMain;
 
-    const totalGrow = vtNode.children.reduce(
+    const totalGrow = inFlowChildren.reduce(
       (sum, child) => sum + resolveFlexStyles(child).flexGrow,
       0,
     );
-    const totalShrink = vtNode.children.reduce(
+    const totalShrink = inFlowChildren.reduce(
       (sum, child, i) => sum + resolveFlexStyles(child).flexShrink * mainSizes[i],
       0,
     );
 
     if (freeSpace > 0 && totalGrow > 0 && !isScrollContainer) {
-      for (let i = 0; i < vtNode.children.length; i++) {
-        const cs = resolveFlexStyles(vtNode.children[i]);
+      for (let i = 0; i < inFlowChildren.length; i++) {
+        const cs = resolveFlexStyles(inFlowChildren[i]);
         mainSizes[i] = Math.floor(mainSizes[i] + (freeSpace * cs.flexGrow) / totalGrow);
       }
     } else if (freeSpace < 0 && totalShrink > 0 && !isScrollContainer) {
-      for (let i = 0; i < vtNode.children.length; i++) {
-        const cs = resolveFlexStyles(vtNode.children[i]);
+      for (let i = 0; i < inFlowChildren.length; i++) {
+        const cs = resolveFlexStyles(inFlowChildren[i]);
         const shrinkAmount =
           (freeSpace * cs.flexShrink * mainSizes[i]) / totalShrink;
         mainSizes[i] = Math.floor(mainSizes[i] + shrinkAmount);
       }
     } else if (freeSpace < 0 && totalMain > 0 && !isScrollContainer) {
-      for (let i = 0; i < vtNode.children.length; i++) {
+      for (let i = 0; i < inFlowChildren.length; i++) {
         mainSizes[i] = Math.floor((mainSizes[i] / totalMain) * mainSize);
       }
     }
 
-    // Layout children recursively
+    // Layout in-flow children recursively
     const gap = styles.gap;
-    const justifyGap = Math.floor(this.calculateJustifyGap(freeSpace, styles, vtNode.children.length));
-    let offset = Math.floor(this.computeJustifyOffset(freeSpace, totalMain, mainSize, styles, gap, vtNode.children.length));
+    const justifyGap = Math.floor(this.calculateJustifyGap(freeSpace, styles, inFlowChildren.length));
+    let offset = Math.floor(this.computeJustifyOffset(freeSpace, totalMain, mainSize, styles, gap, inFlowChildren.length));
 
-    for (let i = 0; i < vtNode.children.length; i++) {
-      const child = vtNode.children[i];
+    for (let i = 0; i < inFlowChildren.length; i++) {
+      const child = inFlowChildren[i];
       const childMain = Math.max(0, mainSizes[i]);
 
       const childX = isRow ? Math.floor(nodeX + styles.paddingLeft + offset) : Math.floor(nodeX + styles.paddingLeft);
@@ -222,8 +235,22 @@ export class FlexLayout {
       offset += Math.max(1, childMain) + gap + justifyGap;
     }
 
-    // Position on cross-axis (align-items)
+    // Position on cross-axis (align-items). Runs before absolute children are
+    // appended so they are never shifted by the parent's alignment.
     this.positionCrossAxis(childLayouts, styles, crossSize, isRow);
+
+    // Absolutely positioned children: measure their natural size, then place
+    // them at (left, top) inside the content box, above in-flow content.
+    for (const child of absoluteChildren) {
+      const abs = this.layoutAbsolute(
+        child,
+        nodeX + styles.paddingLeft,
+        nodeY + styles.paddingTop,
+        contentWidth,
+        contentHeight,
+      );
+      childLayouts.push(abs);
+    }
 
     // Scroll offset: pin the newest content to the bottom of the viewport.
     if (isScrollContainer) {
@@ -249,6 +276,92 @@ export class FlexLayout {
       width: Math.floor(boxW + padX),
       height: Math.floor(boxH + padY),
       children: childLayouts,
+    };
+  }
+
+  /**
+   * Lay out an absolutely positioned node.
+   *
+   * The node is measured at its natural (content-derived) size and placed at
+   * `(left, top)` relative to the containing box, clamped to its bounds.
+   */
+  private layoutAbsolute(
+    vtNode: VTNode,
+    parentX: number,
+    parentY: number,
+    contentWidth: number,
+    contentHeight: number,
+  ): LayoutNode {
+    const styles = resolveFlexStyles(vtNode);
+    const left = Math.floor(styles.left);
+    const top = Math.floor(styles.top);
+
+    const natural = this.measureNode(vtNode, false);
+    const w =
+      typeof styles.width === 'number'
+        ? styles.width
+        : Math.min(natural.w, Math.max(0, contentWidth - left));
+    const h =
+      typeof styles.height === 'number'
+        ? styles.height
+        : Math.min(natural.h, Math.max(0, contentHeight - top));
+
+    return this.layoutNode(
+      vtNode,
+      parentX + left,
+      parentY + top,
+      Math.max(0, Math.floor(w)),
+      Math.max(0, Math.floor(h)),
+    );
+  }
+
+  /**
+   * Measure a node's natural size, ignoring the available space.
+   *
+   * Mirrors the engine's sizing rules: main-axis extents of in-flow children
+   * are summed, cross-axis extents are the maximum, gaps and padding are
+   * added. Absolute children and `display: none` nodes are skipped.
+   */
+  private measureNode(vtNode: VTNode, _parentIsRow: boolean): { w: number; h: number } {
+    const styles = resolveFlexStyles(vtNode);
+
+    const textBox = (): { w: number; h: number } => {
+      const lines = vtNode.textContent.split('\n');
+      const w = Math.max(0, ...lines.map((l) => l.length));
+      return {
+        w: w + styles.paddingLeft + styles.paddingRight,
+        h: Math.max(1, lines.length) + styles.paddingTop + styles.paddingBottom,
+      };
+    };
+
+    if (vtNode.type === 'text') return textBox();
+    if (vtNode.type === 'comment' || vtNode.styles.get('display') === 'none') return { w: 0, h: 0 };
+    if (!isFlexContainer(vtNode)) return textBox();
+
+    const isRow = styles.flexDirection === 'row';
+    let main = 0;
+    let cross = 0;
+    let inFlow = 0;
+
+    for (const child of vtNode.children) {
+      const cs = resolveFlexStyles(child);
+      if (cs.position === 'absolute' || child.styles.get('display') === 'none') continue;
+      const size = this.measureNode(child, isRow);
+      if (isRow) {
+        main += size.w;
+        cross = Math.max(cross, size.h);
+      } else {
+        main += size.h;
+        cross = Math.max(cross, size.w);
+      }
+      inFlow++;
+    }
+
+    if (inFlow > 1) main += styles.gap * (inFlow - 1);
+
+    return {
+      w: (isRow ? main : cross) + styles.paddingLeft + styles.paddingRight,
+      h: (isRow ? cross : main) + styles.paddingTop + styles.paddingBottom,
     };
   }
 

@@ -283,3 +283,152 @@ describe('FlexLayout', () => {
     expect(result.vtNode.styles.get('scrollTop')).toBe(2);
   });
 });
+
+describe('FlexLayout absolute positioning', () => {
+  const layout = new FlexLayout();
+
+  it('places an absolute child at left/top without disturbing the flow', () => {
+    const root = createVTNode('root');
+    root.styles.set('flexDirection', 'column');
+    root.styles.set('width', 40);
+    root.styles.set('height', 20);
+
+    const flow = createVTNode('text');
+    flow.textContent = 'in-flow';
+    const abs = createVTNode('text');
+    abs.textContent = 'overlay';
+    abs.styles.set('position', 'absolute');
+    abs.styles.set('left', 10);
+    abs.styles.set('top', 5);
+    appendVTChild(root, flow);
+    appendVTChild(root, abs);
+
+    const result = layout.calculate(root, 40, 20);
+
+    expect(result.children.length).toBe(2);
+    // In-flow child keeps its natural position (not pushed by the absolute one).
+    expect(result.children[0].x).toBe(0);
+    expect(result.children[0].y).toBe(0);
+    // Absolute child sits at (10, 5) with content width.
+    expect(result.children[1].x).toBe(10);
+    expect(result.children[1].y).toBe(5);
+    expect(result.children[1].width).toBe(7);
+    expect(result.children[1].height).toBe(1);
+  });
+
+  it('measures the natural size of an absolute container with children', () => {
+    const root = createVTNode('root');
+    root.styles.set('width', 80);
+    root.styles.set('height', 24);
+
+    const panel = createVTNode('element', 'vt-overlay-panel');
+    panel.styles.set('position', 'absolute');
+    panel.styles.set('left', 2);
+    panel.styles.set('top', 3);
+    panel.styles.set('padding', 1);
+    const text = createVTNode('text');
+    text.textContent = 'hint';
+    appendVTChild(panel, text);
+    appendVTChild(root, panel);
+
+    const result = layout.calculate(root, 80, 24);
+    const node = result.children[0]!;
+
+    // 1 padding each side + 4 content columns, 1 + 1 + 1 rows.
+    expect(node.x).toBe(2);
+    expect(node.y).toBe(3);
+    expect(node.width).toBe(6);
+    expect(node.height).toBe(3);
+    expect(node.children.length).toBe(1);
+    expect(node.children[0]!.x).toBe(3);
+    expect(node.children[0]!.y).toBe(4);
+  });
+
+  it('uses explicit width/height for absolute children', () => {
+    const root = createVTNode('root');
+    root.styles.set('width', 80);
+    root.styles.set('height', 24);
+
+    const abs = createVTNode('element', 'vt-overlay-panel');
+    abs.styles.set('position', 'absolute');
+    abs.styles.set('left', 4);
+    abs.styles.set('top', 6);
+    abs.styles.set('width', 20);
+    abs.styles.set('height', 3);
+    appendVTChild(root, abs);
+
+    const result = layout.calculate(root, 80, 24);
+    const node = result.children[0]!;
+
+    expect(node.x).toBe(4);
+    expect(node.y).toBe(6);
+    expect(node.width).toBe(20);
+    expect(node.height).toBe(3);
+  });
+
+  it('clamps an absolute child to the containing box', () => {
+    const root = createVTNode('root');
+    root.styles.set('width', 10);
+    root.styles.set('height', 5);
+
+    const abs = createVTNode('text');
+    abs.textContent = 'tooltip-text';
+    abs.styles.set('position', 'absolute');
+    abs.styles.set('left', 8);
+    abs.styles.set('top', 4);
+    appendVTChild(root, abs);
+
+    const result = layout.calculate(root, 10, 5);
+    const node = result.children[0]!;
+
+    // Content width is capped at 10 - 8 = 2 columns.
+    expect(node.x).toBe(8);
+    expect(node.y).toBe(4);
+    expect(node.width).toBe(2);
+  });
+
+  it('ignores absolute children in grow/shrink distribution', () => {
+    const root = createVTNode('root');
+    root.styles.set('flexDirection', 'row');
+    root.styles.set('width', 20);
+    root.styles.set('height', 3);
+
+    const grow = createVTNode('element', 'vt-box');
+    grow.styles.set('flexGrow', 1);
+    const abs = createVTNode('text');
+    abs.textContent = 'B';
+    abs.styles.set('position', 'absolute');
+    abs.styles.set('left', 0);
+    abs.styles.set('top', 0);
+    appendVTChild(root, grow);
+    appendVTChild(root, abs);
+
+    const result = layout.calculate(root, 20, 3);
+
+    // The in-flow child gets all 20 columns; the absolute one is not counted.
+    expect(result.children[0].width).toBe(20);
+    expect(result.children[1].x).toBe(0);
+    expect(result.children[1].y).toBe(0);
+  });
+
+  it('paints absolute children after in-flow ones (on top)', () => {
+    const root = createVTNode('root');
+    root.styles.set('width', 20);
+    root.styles.set('height', 5);
+
+    const flow = createVTNode('text');
+    flow.textContent = 'under';
+    const abs = createVTNode('text');
+    abs.textContent = 'over';
+    abs.styles.set('position', 'absolute');
+    abs.styles.set('left', 0);
+    abs.styles.set('top', 0);
+    appendVTChild(root, flow);
+    appendVTChild(root, abs);
+
+    const result = layout.calculate(root, 20, 5);
+
+    // Order in children mirrors DOM order; rendering paints in that order.
+    expect(result.children.map((c) => c.vtNode)).toEqual([flow, abs]);
+  });
+});
