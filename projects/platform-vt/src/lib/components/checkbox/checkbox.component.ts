@@ -40,15 +40,17 @@ export class CheckboxComponent {
     effect(() => {
       const node = this.elementRef.nativeElement as VTNode;
       if (node.type !== 'element') return;
-      // `[x]` / `[ ]` render identically on every terminal, unlike the ballot
-      // box glyphs (U+2611/U+2610) which many fonts collapse into the same box.
-      // The checked state is further emphasised with color.
-      const check = this.checked() ? '[x]' : '[ ]';
+      // White square with rounded corners (▢) vs. white square containing a
+      // black small square (▣). The checked glyph is larger and gains a
+      // filled centre, so the state change is obvious on any terminal; it is
+      // emphasised further with green + bold.
+      const check = this.checked() ? '\u25A3' : '\u25A2';
       node.styles.set('minHeight', 1);
       node.textContent = `${check} ${this.label()}`;
       const themedColor = this.styleReader.get('vt-checkbox')['color'] ?? '';
       if (this.isFocused()) {
         node.styles.set('color', 'cyan');
+        node.styles.set('fontWeight', 'normal');
       } else if (this.checked()) {
         node.styles.set('color', 'green');
         node.styles.set('fontWeight', 'bold');
