@@ -34,6 +34,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { title: 'Spacer', slug: 'components/spacer', group: 'Components' },
       { title: 'Newline', slug: 'components/newline', group: 'Components' },
       { title: 'ScrollView', slug: 'components/scroll', group: 'Components' },
+      { title: 'Tooltip & Overlay', slug: 'components/tooltip', group: 'Components' },
     ],
   },
 ];

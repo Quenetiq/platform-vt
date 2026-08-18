@@ -8,6 +8,7 @@ import {
   CaretComponent,
   SpinnerComponent,
   ScrollViewComponent,
+  TooltipDirective,
 } from '@quenetiq/platform-vt';
 
 interface ChatMessage {
@@ -28,6 +29,7 @@ const COST_PER_TOKEN = 0.000004;
     CaretComponent,
     SpinnerComponent,
     ScrollViewComponent,
+    TooltipDirective,
   ],
   template: `
     <vt-box flexDirection="column" [flexGrow]="1">
@@ -77,13 +79,29 @@ const COST_PER_TOKEN = 0.000004;
         <vt-input [autofocus]="true" (submitted)="addReply($event)">
           <vt-caret [blink]="true" color="#58a6ff"></vt-caret>
         </vt-input>
+        <vt-text
+          content="?"
+          [color]="'#8b949e'"
+          [vtTooltip]="'Enter a message, or try: /help, /code, /fix'"
+          vtTooltipPosition="top"
+        ></vt-text>
       </vt-box>
 
       <vt-box flexDirection="column" [padding]="'0 0 0 3'">
         <vt-box flexDirection="row">
-          <vt-text content="local · default · ~/demo" [color]="'#8b949e'"></vt-text>
+          <vt-text
+            content="local · default · ~/demo"
+            [color]="'#8b949e'"
+            [vtTooltip]="'Working directory of the demo session'"
+            vtTooltipPosition="top"
+          ></vt-text>
           <vt-spacer></vt-spacer>
-          <vt-text content="? for shortcuts · v1.0.0" [color]="'#8b949e'"></vt-text>
+          <vt-text
+            content="? for shortcuts · v1.0.0"
+            [color]="'#8b949e'"
+            [vtTooltip]="'Hover the status bar — tooltips are terminal overlays'"
+            vtTooltipPosition="top"
+          ></vt-text>
         </vt-box>
         <vt-box flexDirection="row">
           <vt-text [content]="taskLabel()" [color]="'#8b949e'" [wrap]="'wrap'"></vt-text>

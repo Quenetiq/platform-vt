@@ -64,8 +64,18 @@ jobs:
       - name: Build library
         run: npx ng build platform-vt
 
-      - name: Build docs
+      - name: Build docs app
+        run: npx ng build docs
+
+      - name: Build API reference (compodoc)
         run: npx compodoc -c .compodocrc.yaml
+
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p gh-pages/api
+          cp -r dist/docs/browser/* gh-pages/
+          cp -r docs/compodoc/* gh-pages/api/
+          cp gh-pages/index.html gh-pages/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -73,7 +83,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/compodoc
+          path: gh-pages
 
       - name: Deploy to GitHub Pages
         id: deployment
