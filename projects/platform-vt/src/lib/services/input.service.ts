@@ -39,6 +39,7 @@ const KEY_MAP: Record<string, string> = {
   '\x06': 'ctrl-f',
   '\x02': 'ctrl-b',
   '\x17': 'ctrl-w',
+  '\x1b': 'escape',
 };
 
 /**
@@ -77,7 +78,11 @@ export function splitInputKeys(data: string): string[] {
 /**
  * Parses keyboard input from stdin and emits {@link VTKeyEvent} objects.
  *
- * Sets the terminal to raw mode and listens for data events.
+ * Sets the terminal to raw mode and listens for data events. When bracketed
+ * paste is enabled (the default via {@link bootstrapTerminal}), pasted text
+ * arrives wrapped in `\x1b[200~ ... \x1b[201~` and is emitted as a single
+ * `paste` event instead of a burst of key events.
+ *
  * Runs inside NgZone so Angular change detection picks up signal updates.
  *
  * @example
@@ -86,6 +91,7 @@ export function splitInputKeys(data: string): string[] {
  * input.keyEvents.pipe(filter(e => e.name === 'return')).subscribe(() => {
  *   console.log('Enter pressed');
  * });
+ * input.pastes.subscribe((text) => console.log('pasted:', text));
  * ```
  */
 @Injectable()
@@ -99,11 +105,20 @@ export class InputService {
   /** Raw stdin data chunks, including mouse sequences. Consumed by {@link MouseService}. */
   readonly rawInput = new Subject<string>();
 
+  /** Observable stream of completed paste events (bracketed paste). */
+  readonly pastes = new Subject<string>();
+
+  /** Signal holding the most recent paste text (or null). */
+  readonly lastPaste = signal<string | null>(null);
+
   /** Signal holding the most recent key event. */
   readonly lastKey = signal<VTKeyEvent | null>(null);
 
   /** Observable stream of parsed key events. */
   readonly keyEvents = this.keySubject.asObservable();
+
+  /** Buffered paste content while a bracketed paste is in progress. */
+  private pasteBuffer: string | null = null;
 
   constructor() {
     this.setupInput();
@@ -111,6 +126,20 @@ export class InputService {
     this.destroyRef.onDestroy(() => {
       this.keySubject.complete();
       this.rawInput.complete();
+      this.pastes.complete();
+    });
+  }
+
+  /**
+   * Inject a synthetic key event as if it came from stdin.
+   *
+   * Useful for tests and scripted automation: the event goes through the
+   * same `keyEvents` stream as real keypresses.
+   */
+  simulateKey(event: VTKeyEvent): void {
+    this.ngZone.run(() => {
+      this.lastKey.set(event);
+      this.keySubject.next(event);
     });
   }
 
@@ -118,32 +147,76 @@ export class InputService {
     if (typeof process === 'undefined') return;
     if (!process.stdin) return;
 
-    try {
-      if (typeof (process.stdin as { setRawMode?: (flag: boolean) => void }).setRawMode === 'function') {
-        (process.stdin as { setRawMode: (flag: boolean) => void }).setRawMode(true);
-      }
-    } catch {
-      // Ignore — raw mode is unavailable (e.g. piped stdin), key parsing still works.
-    }
+    this.terminal.setRawMode(true);
 
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
 
     process.stdin.on('data', (data: string) => {
       this.rawInput.next(data);
-
-      const cleaned = stripSgrSequences(data);
-      const keys = splitInputKeys(cleaned);
-      if (keys.length === 0) return;
-
       this.ngZone.run(() => {
-        for (const key of keys) {
-          const event = this.parseKey(key);
-          this.lastKey.set(event);
-          this.keySubject.next(event);
-        }
+        this.handleChunk(data);
       });
     });
+  }
+
+  /** Route a stdin chunk: paste framing first, then key parsing. */
+  private handleChunk(data: string): void {
+    const PASTE_START = '\x1b[200~';
+    const PASTE_END = '\x1b[201~';
+
+    // Mid-paste: accumulate until the closing sequence.
+    if (this.pasteBuffer !== null) {
+      const endIndex = data.indexOf(PASTE_END);
+      if (endIndex === -1) {
+        this.pasteBuffer += data;
+        return;
+      }
+      this.pasteBuffer += data.substring(0, endIndex);
+      this.emitPaste(this.pasteBuffer);
+      this.pasteBuffer = null;
+      const rest = data.substring(endIndex + PASTE_END.length);
+      if (rest.length > 0) this.handleChunk(rest);
+      return;
+    }
+
+    // Paste start (possibly with content before it in the same chunk).
+    const startIndex = data.indexOf(PASTE_START);
+    if (startIndex !== -1) {
+      const before = data.substring(0, startIndex);
+      if (before.length > 0) this.processKeys(before);
+
+      const after = data.substring(startIndex + PASTE_START.length);
+      const endIndex = after.indexOf(PASTE_END);
+      if (endIndex === -1) {
+        this.pasteBuffer = after;
+        return;
+      }
+      this.emitPaste(after.substring(0, endIndex));
+      const rest = after.substring(endIndex + PASTE_END.length);
+      if (rest.length > 0) this.handleChunk(rest);
+      return;
+    }
+
+    this.processKeys(data);
+  }
+
+  private emitPaste(text: string): void {
+    if (text.length === 0) return;
+    this.lastPaste.set(text);
+    this.pastes.next(text);
+  }
+
+  private processKeys(data: string): void {
+    const cleaned = stripSgrSequences(data);
+    const keys = splitInputKeys(cleaned);
+    if (keys.length === 0) return;
+
+    for (const key of keys) {
+      const event = this.parseKey(key);
+      this.lastKey.set(event);
+      this.keySubject.next(event);
+    }
   }
 
   private parseKey(data: string): VTKeyEvent {

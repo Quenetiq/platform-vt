@@ -12,11 +12,17 @@ zoneless: `signal()`, `computed()`, `effect()`, `input()` / `output()`.
 
 - **Angular 22** — standalone components, zoneless change detection, signal inputs/outputs
 - **Flexbox layout engine** — `flexDirection`, `justifyContent`, `alignItems`, `gap`, `grow/shrink`, padding, margins, wrapping, scrolling, absolute positioning
-- **Interactive components** — `vt-button`, `vt-input`, `vt-checkbox`, `vt-select`, `vt-list`
-- **Display components** — `vt-box`, `vt-text`, `vt-table`, `vt-progress`, `vt-spinner`, `vt-scroll`, `vt-separator`, `vt-newline`, `vt-spacer`, `vt-caret`
-- **Services** — terminal size, rendering, keyboard input, focus navigation, mouse/click handling
+- **Interactive components** — `vt-button`, `vt-input`, `vt-textarea`, `vt-autocomplete`, `vt-checkbox`, `vt-toggle`, `vt-select`, `vt-radio`, `vt-slider`, `vt-list`, `vt-tabs`, `vt-tree`, `vt-menu`, `vt-split-view`, `vt-paginator`
+- **Display components** — `vt-box`, `vt-text`, `vt-link`, `vt-ansi-text`, `vt-table` (sortable, selectable, virtualized), `vt-progress`, `vt-spinner`, `vt-sparkline`, `vt-scroll`, `vt-separator`, `vt-newline`, `vt-spacer`, `vt-caret`, `vt-image`, `vt-badge`, `vt-statusbar`
+- **Forms** — `vt-form` / `vt-form-field` with validators (`required`, `email`, `minLength`, …)
+- **Services** — terminal size + capabilities, rendering, keyboard input, bracketed paste, focus navigation, mouse/click/wheel handling, global keybindings, clipboard (OSC 52), drag & drop, text selection, session recording, state persistence
+- **Diff rendering** — cell-buffer virtual screen: only changed cells are repainted (unchanged frames cost ~0.4ms even at 1000 rows)
+- **Overlays & dialogs** — floating panels (`OverlayService`), modal dialogs with focus traps (`DialogService.confirm`/`prompt`/`openTemplate`), context menus (`MenuService`), command palette (Ctrl+P), hover tooltips, toasts (`ToastService`)
+- **Error handling** — framed error screen via `provideTerminalErrorHandler()`
+- **Terminal modes** — alt screen buffer, raw mode, bracketed paste, graceful restore on SIGINT/SIGTERM/exit
+- **Color adaptation** — truecolor / 256 / 16 detection and automatic fallback
+- **Unicode-aware rendering** — CJK/emoji/combining marks measured in terminal cells
 - **Theming** — a stylesheet parser + theme registry (`provideStyles`)
-- **Overlay (CDK)** — floating panels rendered on top of the app, with hover tooltips
 
 ## Installation
 
@@ -78,10 +84,12 @@ npx tsx main.ts
 |---|---|---|
 | BoxComponent | `vt-box` | Flex container (direction, justify, align, gap, padding, border, colors) |
 | TextComponent | `vt-text` | Inline/block text (`content` input, color, weight, wrap) |
+| LinkComponent | `vt-link` | OSC 8 hyperlink (`href`, `content`) |
+| AnsiTextComponent | `vt-ansi-text` | Text with embedded ANSI colors rendered as-is (`content`) |
 | NewlineComponent | `vt-newline` | Vertical spacing (`count`) |
 | SpacerComponent | `vt-spacer` | Fills remaining flex space |
 | SeparatorComponent | `vt-separator` | Horizontal line (`─`, `═`, …) |
-| ScrollViewComponent | `vt-scroll` | Fixed-size scrollable viewport (chat-style bottom pinning) |
+| ScrollViewComponent | `vt-scroll` | Fixed-size scrollable viewport (chat-style bottom pinning, wheel scroll) |
 
 ### Interactive
 
@@ -89,9 +97,16 @@ npx tsx main.ts
 |---|---|---|
 | ButtonComponent | `vt-button` | `label`, `variant`, `autofocus` · `clicked` |
 | InputComponent | `vt-input` | `placeholder`, `value`, `maxLength`, `mask`, `flexGrow` · `valueChange`, `submitted` |
+| TextAreaComponent | `vt-textarea` | `value`, `rows`, `placeholder`, `maxLength` · `valueChange`, `submitted` (Ctrl+Enter) |
 | CheckboxComponent | `vt-checkbox` | `label`, `checked`, `autofocus` · `checkedChange` |
+| ToggleComponent | `vt-toggle` | `label`, `checked` · `checkedChange` |
 | SelectComponent | `vt-select` | `options`, `autofocus` · `valueChange` |
+| RadioComponent / RadioGroupComponent | `vt-radio` / `vt-radio-group` | `value`, `label`, `checked` · `checkedChange` / `valueChange` |
+| SliderComponent | `vt-slider` | `value`, `min`, `max`, `step`, `width` · `valueChange` |
 | ListComponent | `vt-list` | `items`, `autofocus` · `selectedChange`, `activated` |
+| TabsComponent | `vt-tabs` | `tabs`, `active` · `activeChange` |
+| TreeComponent | `vt-tree` | `nodes` · `selected` |
+| MenuComponent | `vt-menu` | `items` · `selected`, `cancelled` |
 
 ### Display
 
@@ -100,8 +115,24 @@ npx tsx main.ts
 | TableComponent | `vt-table` | Bordered table from `columns` / `rows` |
 | ProgressComponent | `vt-progress` | Progress bar (`value`, `max`, `showPercent`) |
 | SpinnerComponent | `vt-spinner` | Loading animation (`type`, `label`) |
+| SparklineComponent | `vt-sparkline` | Bar/braille chart from `data` |
 | CaretComponent | `vt-caret` | Blinking cursor glyph |
 | ClickableDirective | `[vt-clickable]` | Make any element mouse-clickable (`clicked`) |
+
+### Forms
+
+```html
+<vt-form #f="vtForm" (submitted)="save(f.values())">
+  <vt-form-field name="email" label="Email" [validators]="[required(), email()]">
+    <vt-input placeholder="you@example.com" (valueChange)="email.set($event)"></vt-input>
+  </vt-form-field>
+  <vt-button label="Submit" (clicked)="f.submit()"></vt-button>
+</vt-form>
+```
+
+Validators: `required()`, `minLength(n)`, `maxLength(n)`, `pattern(re)`, `email()`,
+`min(n)`, `max(n)`, `equals(v)`, `compose(...)`. Invalid fields show a red
+accent border and are excluded from `f.values()`/`submitted`.
 
 ## Overlay & tooltips (CDK)
 
@@ -174,12 +205,78 @@ bootstrapTerminal(App, {
 
 | Service | Purpose |
 |---|---|
-| `TerminalService` | Terminal size as signals (`columns`, `rows`) |
-| `RenderService` | Schedules and flushes renders; layout hit-testing |
-| `InputService` | Parses raw stdin into key events (`keyEvents`) |
+| `TerminalService` | Terminal size + capabilities as signals; alt screen, raw mode, cleanup |
+| `RenderService` | Schedules and flushes renders; layout hit-testing; cell-buffer diff |
+| `InputService` | Parses raw stdin into key events (`keyEvents`), bracketed paste (`pastes`) |
 | `FocusService` | Tab / Shift+Tab focus navigation |
 | `MouseService` | SGR mouse events (press, release, move, wheel) |
 | `ClickService` | Click hit-testing and dispatch |
+| `WheelService` | Wheel event hit-testing and dispatch (scroll views) |
+| `KeymapService` | Global keybindings: `bind('ctrl-p', handler)` |
+| `ClipboardService` | OSC 52 clipboard read/write |
+| `SelectionService` | Shift+drag text selection, copy on release/Ctrl+C |
+| `DragService` | Drag & drop dispatch (`[vtDraggable]`, `[vtDropZone]`) |
+| `SessionRecorder` | Records stdout; exports asciinema v2 / ANSI screenshot |
+| `PersistenceService` | JSON-backed persisted signals |
+| `CommandPaletteService` | Ctrl+P fuzzy command palette |
+
+## Selection, drag & drop, recording
+
+```typescript
+import { inject } from '@angular/core';
+import { SelectionService, DragService, SessionRecorder } from '@quenetiq/platform-vt';
+
+export class MyComponent {
+  private readonly selection = inject(SelectionService);
+  private readonly drag = inject(DragService);
+  private readonly recorder = inject(SessionRecorder);
+
+  startRecording() {
+    this.recorder.start();
+  }
+  stopRecording() {
+    this.recorder.stop();
+    this.recorder.exportAsciinema('session.cast');
+  }
+}
+```
+
+Shift+drag selects text (reverse video) and copies it to the system
+clipboard via OSC 52. Draggables/drop zones are declared with directives:
+
+```html
+<vt-box [vtDraggable]="true" (dragEnd)="onCardDrop($event)">Card</vt-box>
+<vt-box [vtDropZone]="true" (dropped)="onDropHere($event)">Slot A</vt-box>
+```
+
+## Dialogs, menus & toasts
+
+```typescript
+import { inject } from '@angular/core';
+import { DialogService, MenuService, ToastService } from '@quenetiq/platform-vt';
+
+export class MyComponent {
+  private readonly dialogs = inject(DialogService);
+  private readonly menus = inject(MenuService);
+  private readonly toasts = inject(ToastService);
+
+  confirmDelete() {
+    const ref = this.dialogs.open(ConfirmDialog, { title: 'Delete?' });
+    ref.closed.subscribe(() => this.toasts.show('Deleted', { variant: 'success' }));
+  }
+
+  onRightClick(x: number, y: number) {
+    this.menus.open(
+      [{ label: 'Copy', hint: 'Ctrl+C' }, { label: 'Delete', disabled: true }],
+      x,
+      y,
+    ).select.subscribe((index) => console.log('chose', index));
+  }
+}
+```
+
+Requires `provideOverlay()` (for dialogs/menus) and `provideToasts()` in
+`bootstrapTerminal`.
 
 ## Development
 

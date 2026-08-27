@@ -7,9 +7,11 @@ import {
   EnvironmentInjector,
 } from '@angular/core';
 import { OverlayContainer } from './overlay-container';
-import { OverlayRef } from './overlay-ref';
+import { OverlayRef, type OverlayOptions } from './overlay-ref';
 import { RenderService } from '../services/render.service';
 import { MouseService } from '../services/mouse.service';
+import { InputService } from '../services/input.service';
+import { TerminalService } from '../services/terminal.service';
 
 /**
  * Creates {@link OverlayRef} handles for floating terminal UI.
@@ -22,8 +24,8 @@ import { MouseService } from '../services/mouse.service';
  * @example
  * ```typescript
  * const overlay = inject(OverlayService);
- * const ref = overlay.create();
- * ref.setPosition(10, 5);
+ * const ref = overlay.create({ closeOnEscape: true });
+ * ref.setPositionFromRect(() => render.getElementRect(anchor), 'bottom');
  * ref.attach(TooltipComponent);
  * // ...
  * ref.dispose();
@@ -33,6 +35,7 @@ import { MouseService } from '../services/mouse.service';
 export class OverlayService {
   private readonly container = inject(OverlayContainer);
   private readonly renderService = inject(RenderService);
+  private readonly terminal = inject(TerminalService);
   private readonly appRef = inject(ApplicationRef);
   private readonly environmentInjector = inject(EnvironmentInjector);
 
@@ -42,10 +45,32 @@ export class OverlayService {
    * The panel starts at (0, 0) with no content. Use
    * {@link OverlayRef.setPosition} / {@link OverlayRef.setPositionFromRect}
    * to place it and {@link OverlayRef.attach} to mount a component onto it.
+   *
+   * @param options - Behavior options: `closeOnEscape` disposes the overlay
+   * when the user presses Esc, `closeOnOutsideClick` disposes it when a
+   * click lands outside the panel.
    */
-  create(): OverlayRef {
+  create(options: OverlayOptions = {}): OverlayRef {
     const panel = this.container.createPanel();
-    return new OverlayRef(panel, this.renderService, this.appRef, this.environmentInjector);
+    let input: InputService | null = null;
+    let mouse: MouseService | null = null;
+    try {
+      input = this.appRef.injector.get(InputService);
+      mouse = this.appRef.injector.get(MouseService);
+    } catch {
+      // Overlays still work without input/mouse (e.g. pure display panels).
+    }
+    return new OverlayRef(
+      panel,
+      this.renderService,
+      this.terminal,
+      this.appRef,
+      this.environmentInjector,
+      this.container,
+      input,
+      mouse,
+      options,
+    );
   }
 }
 

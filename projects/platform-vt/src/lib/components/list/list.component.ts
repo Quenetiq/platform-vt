@@ -8,6 +8,7 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
+import { vimTranslate } from '../../keymaps/vim.presets';
 import type { VTClickEvent } from '../../services/sgr-mouse';
 
 let nextId = 0;
@@ -17,7 +18,7 @@ let nextId = 0;
   template: '',
 })
 export class ListComponent {
-  private readonly elementRef = inject(ElementRef);
+  private readonly elementRef = inject<ElementRef<HTMLElement & VTNode>>(ElementRef);
   private readonly renderService = inject(RenderService);
   private readonly inputService = inject(InputService);
   private readonly focusService = inject(FocusService);
@@ -31,6 +32,8 @@ export class ListComponent {
   readonly activated = output<number>();
   readonly isFocused = signal(false);
   readonly autofocus = input<boolean>(false);
+  /** Enable vim-style navigation (`j`/`k` move the selection). */
+  readonly vim = input<boolean>(false);
 
   private readonly id = `vt-list-${String(nextId++)}`;
 
@@ -65,11 +68,12 @@ export class ListComponent {
         takeUntilDestroyed(),
       )
       .subscribe((event) => {
-        this.handleKey(event);
+        this.handleKey(this.vim() ? vimTranslate(event) : event);
       });
 
     this.focusService.register({
       id: this.id,
+      element: this.elementRef.nativeElement,
       priority: 1,
       onFocus: () => { this.renderService.scheduleRender(); },
       onBlur: () => { this.renderService.scheduleRender(); },

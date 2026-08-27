@@ -1,8 +1,9 @@
 import type { VTNode } from '../renderer/vt-node';
 import type { LayoutNode } from '../layout/layout-node';
-import { cursor, erase, reset } from './ansi';
-import { resolveColorRgb, wrapColorRgb } from './color-map';
+import { ScreenBuffer, emptyCell, type Cell, type CellRegion } from './screen-buffer';
+import type { ColorMode } from './color-map';
 import { wrapText } from './wrap-text';
+import { stringWidth, cellWidth, truncateToWidth, dropCellsFromStart } from './unicode-width';
 
 /** A viewport rectangle used to clip scrolled content. */
 interface ClipRect {
@@ -17,53 +18,97 @@ interface ClipRect {
  */
 export interface TerminalRenderOptions {
   /**
-   * Whether to clear the screen and reset the cursor before painting.
-   * Defaults to `true`. Pass `false` when painting a layer on top of a
-   * previous render (e.g. overlays): the layer then paints over the
-   * existing screen content, which gives overlays their z-order.
+   * Whether to start a fresh frame (reset the virtual screen). Defaults to
+   * `true`. Pass `false` when painting a layer on top of a previous render
+   * (e.g. overlays): the layer then paints over the existing cells, which
+   * gives overlays their z-order. Call {@link TerminalOutput.flush} after
+   * painting all layers to write the diff to the terminal.
    */
   clear?: boolean;
+
+  /**
+   * The terminal's color capability, used to adapt `#hex`/`rgb()` colors to
+   * 256 or 16 color terminals. Defaults to `'truecolor'`.
+   */
+  colorMode?: ColorMode;
+
+  /**
+   * A region to render with reverse video (text selection).
+   */
+  selection?: CellRegion | null;
 }
 
 /**
- * Renders a layout tree to ANSI escape sequences and writes them to stdout.
+ * Renders layout trees into a virtual {@link ScreenBuffer} and diffs it
+ * against the previous frame, writing only the changed cells to stdout.
  *
  * This is the final stage of the render pipeline:
  * 1. Layout engine produces a positioned {@link LayoutNode} tree
- * 2. This class traverses the tree and generates ANSI escape sequences
- * 3. The output is written to `process.stdout`
+ * 2. This class paints it cell by cell into a virtual screen
+ * 3. {@link flush} writes the ANSI diff of changed cells to `process.stdout`
  *
- * Handles background fills, borders, text alignment, and style application.
+ * Handles background fills, borders, text alignment, style application,
+ * wide (CJK/emoji) characters and OSC 8 hyperlinks.
  */
 export class TerminalOutput {
-  private buffer: string[] = [];
+  private readonly screen = new ScreenBuffer();
+  private colorMode: ColorMode = 'truecolor';
+  private selection: CellRegion | null = null;
+  private framePainted = false;
 
   /**
-   * Render a layout tree to the terminal.
+   * Paint a layout tree into the virtual screen.
    *
    * @param layoutTree - The positioned layout tree from FlexLayout.
-   * @param _columns - Terminal width (used for future viewport clipping).
-   * @param _rows - Terminal height (used for future viewport clipping).
+   * @param columns - Terminal width.
+   * @param rows - Terminal height.
    * @param options - Render options, e.g. skipping the screen clear.
    */
-  render(layoutTree: LayoutNode, _columns: number, _rows: number, options?: TerminalRenderOptions): void {
-    this.buffer = [];
+  render(layoutTree: LayoutNode, columns: number, rows: number, options?: TerminalRenderOptions): void {
+    this.colorMode = options?.colorMode ?? 'truecolor';
+    this.selection = options?.selection ?? null;
 
-    const clear = options?.clear ?? true;
-    if (clear) {
-      this.buffer.push(cursor.hide());
-      this.buffer.push(erase.screen());
-      this.buffer.push(cursor.moveTo(0, 0));
+    if (options?.clear ?? true) {
+      this.screen.begin(columns, rows);
     }
 
     this.renderNode(layoutTree, '', null);
+    this.framePainted = true;
+  }
 
-    this.buffer.push(reset());
-    this.buffer.push(cursor.show());
-
+  /**
+   * Write the current frame's diff to stdout (idempotent per frame).
+   */
+  flush(): void {
+    if (!this.framePainted) return;
+    this.framePainted = false;
     if (typeof process !== 'undefined') {
-      process.stdout.write(this.buffer.join(''));
+      process.stdout.write(this.flushToBuffer());
     }
+  }
+
+  /**
+   * Compute the current frame's diff as a string without writing it.
+   * Used by tests and snapshot tooling.
+   */
+  flushToBuffer(): string {
+    this.framePainted = false;
+    return this.screen.paint(this.colorMode);
+  }
+
+  /**
+   * Extract the text of a region from the last painted frame.
+   */
+  text(region: CellRegion): string {
+    return this.screen.text(region);
+  }
+
+  private paint(x: number, y: number, char: string, cell: Partial<Cell>): void {
+    const c: Cell = { ...emptyCell(), ...cell, char };
+    if (this.selection && x >= this.selection.x1 && x <= this.selection.x2 && y >= this.selection.y1 && y <= this.selection.y2) {
+      c.inverse = true;
+    }
+    this.screen.set(x, y, c);
   }
 
   private renderNode(node: LayoutNode, inheritedBg = '', clip: ClipRect | null = null): void {
@@ -121,6 +166,29 @@ export class TerminalOutput {
     }
   }
 
+  private styleCell(node: VTNode, inheritedBg: string): Cell {
+    const cell = emptyCell();
+    const color = node.styles.get('color');
+    if (typeof color === 'string' && color.length > 0) {
+      cell.fg = color;
+    }
+    const bgColor = node.styles.get('backgroundColor');
+    const bg =
+      typeof bgColor === 'string' && bgColor.length > 0 ? bgColor : inheritedBg;
+    cell.bg = bg;
+    if (node.styles.get('fontWeight') === 'bold') cell.bold = true;
+    if (node.styles.get('fontStyle') === 'italic') cell.italic = true;
+    if (node.styles.get('textDecoration') === 'underline') cell.underline = true;
+    if (node.styles.get('textDecoration') === 'strikethrough') cell.strikethrough = true;
+    if (node.styles.get('opacity') === 'dim') cell.dim = true;
+    if (node.styles.get('inverse') === 'true') cell.inverse = true;
+    const url = node.styles.get('hyperlink');
+    if (typeof url === 'string' && url.length > 0) {
+      cell.hyperlink = url;
+    }
+    return cell;
+  }
+
   private renderText(
     node: VTNode,
     x: number,
@@ -132,32 +200,32 @@ export class TerminalOutput {
     const wrap = node.styles.get('wrap') === 'wrap';
     const lines = wrap && width > 0 ? wrapText(node.textContent, width) : node.textContent.split('\n');
     const align = String(node.parent?.styles.get('textAlign') ?? 'left');
+    const cell = this.styleCell(node, inheritedBg);
 
     for (let i = 0; i < lines.length; i++) {
       if (clip && (y + i < clip.y || y + i >= clip.y + clip.height)) continue;
       let line = lines[i];
-      if (line.length > width) {
-        line = line.substring(0, width);
+      if (stringWidth(line) > width) {
+        line = truncateToWidth(line, width);
       }
       line = this.alignText(line, width, align);
       const clipped = this.clipLine(line, x, clip);
       if (clipped === null) continue;
-      line = this.applyStyles(clipped, node, inheritedBg);
-      this.buffer.push(cursor.moveTo(x, y + i));
-      this.buffer.push(line);
+      let col = 0;
+      for (const ch of clipped) {
+        this.paint(x + col, y + i, ch, cell);
+        col += cellWidth(ch);
+      }
     }
   }
 
   private renderBackground(node: LayoutNode, inheritedBg: string, clip: ClipRect | null): void {
     const { x, y, width, height } = node;
     const bgColor = node.vtNode.styles.get('backgroundColor');
-    if (typeof bgColor !== 'string') return;
-    const code = resolveColorRgb(bgColor, 'bg');
-    if (!code) return;
+    if (typeof bgColor !== 'string' || bgColor.length === 0) return;
 
     const radius = Number(node.vtNode.styles.get('borderRadius') ?? 0);
-
-    const fill = ' '.repeat(Math.max(0, width));
+    const bgCell = { ...emptyCell(), bg: bgColor };
 
     // Visible row span within the clip viewport
     const rowStart = clip ? Math.max(0, clip.y - y) : 0;
@@ -167,54 +235,41 @@ export class TerminalOutput {
     const colStart = clip ? Math.max(0, clip.x - x) : 0;
     const colEnd = clip ? Math.min(width, clip.x + clip.width - x) : width;
 
+    const fillRow = (row: number, from: number, to: number): void => {
+      if (clip && (y + row < clip.y || y + row >= clip.y + clip.height)) return;
+      for (let col = Math.max(from, colStart); col < Math.min(to, colEnd); col++) {
+        this.paint(x + col, y + row, ' ', bgCell);
+      }
+    };
+
     if (radius <= 0 || height < 2 || width < 2) {
       for (let row = rowStart; row < rowEnd; row++) {
-        let fillRow = fill;
-        if (colStart > 0 || colEnd < width) {
-          fillRow = fillRow.substring(colStart, colEnd);
-        }
-        if (fillRow.length === 0) continue;
-        this.buffer.push(cursor.moveTo(x + colStart, y + row));
-        this.buffer.push(`${code}${fillRow}\x1b[49m`);
+        fillRow(row, 0, width);
       }
       return;
     }
 
-    // Rounded corners: paint rounded glyphs (in the block's color) at the four
-    // corners over the surrounding background, and skip the corner cells in the
-    // fill so the block reads as a rounded surface.
-    const cornerBg = inheritedBg.length > 0 ? resolveColorRgb(inheritedBg, 'bg') : null;
+    // Rounded corners: paint the corner glyphs in the block's color.
+    const cornerBg: Cell = { ...bgCell, fg: bgColor, bg: inheritedBg };
     const paintCorner = (col: number, row: number, glyph: string): void => {
       if (clip && (y + row < clip.y || y + row >= clip.y + clip.height)) return;
       if (clip && (x + col < clip.x || x + col >= clip.x + clip.width)) return;
-      let cell = wrapColorRgb(glyph, bgColor, 'fg');
-      if (cornerBg) cell = `${cornerBg}${cell}\x1b[49m`;
-      this.buffer.push(cursor.moveTo(x + col, y + row));
-      this.buffer.push(cell);
-    };
-
-    const paintSpan = (fromCol: number, toCol: number, row: number): void => {
-      if (clip && (y + row < clip.y || y + row >= clip.y + clip.height)) return;
-      const f = Math.max(fromCol, colStart);
-      const t = Math.min(toCol, colEnd);
-      if (t <= f) return;
-      this.buffer.push(cursor.moveTo(x + f, y + row));
-      this.buffer.push(`${code}${' '.repeat(t - f)}\x1b[49m`);
+      this.paint(x + col, y + row, glyph, cornerBg);
     };
 
     // Top row (skip corner cells, then place the rounded corners)
     if (rowStart <= 0 && 0 < rowEnd) {
-      paintSpan(1, width - 1, 0);
+      fillRow(0, 1, width - 1);
       paintCorner(0, 0, '\u256d');
       paintCorner(width - 1, 0, '\u256e');
     }
     // Interior rows
     for (let row = Math.max(1, rowStart); row < rowEnd && row < height - 1; row++) {
-      paintSpan(0, width, row);
+      fillRow(row, 0, width);
     }
     // Bottom row
     if (rowStart <= height - 1 && height - 1 < rowEnd) {
-      paintSpan(1, width - 1, height - 1);
+      fillRow(height - 1, 1, width - 1);
       paintCorner(0, height - 1, '\u2570');
       paintCorner(width - 1, height - 1, '\u256f');
     }
@@ -236,15 +291,10 @@ export class TerminalOutput {
     );
 
     const color = node.vtNode.styles.get('color');
-    const paint = (s: string): string => {
-      if (typeof color === 'string' && color.length > 0) {
-        s = wrapColorRgb(s, color, 'fg');
-      }
-      if (effectiveBg.length > 0) {
-        s = wrapColorRgb(s, effectiveBg, 'bg');
-      }
-      return s;
-    };
+    const cell: Cell = { ...emptyCell(), bg: effectiveBg };
+    if (typeof color === 'string' && color.length > 0) {
+      cell.fg = color;
+    }
 
     const rowVisible = (row: number): boolean =>
       !clip || (y + row >= clip.y && y + row < clip.y + clip.height);
@@ -257,8 +307,8 @@ export class TerminalOutput {
       const bar = wide ? borderChars.vertical + borderChars.vertical : borderChars.vertical;
       for (let row = 0; row < height; row++) {
         if (!rowVisible(row)) continue;
-        this.buffer.push(cursor.moveTo(x, y + row));
-        this.buffer.push(paint(bar));
+        this.paint(x, y + row, bar[0]!, cell);
+        if (bar.length > 1) this.paint(x + 1, y + row, bar[1]!, cell);
       }
       return;
     }
@@ -271,8 +321,7 @@ export class TerminalOutput {
 
     // Top
     if (rowVisible(0) && colVisible(0)) {
-      this.buffer.push(cursor.moveTo(x, y));
-      this.buffer.push(paint(topLeft));
+      this.paint(x, y, topLeft, cell);
     }
     if (rowVisible(0)) {
       let from = 1;
@@ -281,34 +330,29 @@ export class TerminalOutput {
         from = Math.max(from, clip.x - x);
         to = Math.min(to, clip.x + clip.width - x);
       }
-      if (to > from) {
-        this.buffer.push(cursor.moveTo(x + from, y));
-        this.buffer.push(paint(borderChars.horizontal.repeat(to - from)));
+      for (let cx = from; cx < to; cx++) {
+        this.paint(x + cx, y, borderChars.horizontal, cell);
       }
     }
     if (rowVisible(0) && colVisible(width - 1)) {
-      this.buffer.push(cursor.moveTo(x + width - 1, y));
-      this.buffer.push(paint(topRight));
+      this.paint(x + width - 1, y, topRight, cell);
     }
 
     // Sides
     for (let row = 1; row < height - 1; row++) {
       if (!rowVisible(row)) continue;
       if (colVisible(0)) {
-        this.buffer.push(cursor.moveTo(x, y + row));
-        this.buffer.push(paint(borderChars.vertical));
+        this.paint(x, y + row, borderChars.vertical, cell);
       }
       if (colVisible(width - 1)) {
-        this.buffer.push(cursor.moveTo(x + width - 1, y + row));
-        this.buffer.push(paint(borderChars.vertical));
+        this.paint(x + width - 1, y + row, borderChars.vertical, cell);
       }
     }
 
     // Bottom
     const lastRow = height - 1;
     if (rowVisible(lastRow) && colVisible(0)) {
-      this.buffer.push(cursor.moveTo(x, y + lastRow));
-      this.buffer.push(paint(bottomLeft));
+      this.paint(x, y + lastRow, bottomLeft, cell);
     }
     if (rowVisible(lastRow)) {
       let from = 1;
@@ -317,14 +361,12 @@ export class TerminalOutput {
         from = Math.max(from, clip.x - x);
         to = Math.min(to, clip.x + clip.width - x);
       }
-      if (to > from) {
-        this.buffer.push(cursor.moveTo(x + from, y + lastRow));
-        this.buffer.push(paint(borderChars.horizontal.repeat(to - from)));
+      for (let cx = from; cx < to; cx++) {
+        this.paint(x + cx, y + lastRow, borderChars.horizontal, cell);
       }
     }
     if (rowVisible(lastRow) && colVisible(width - 1)) {
-      this.buffer.push(cursor.moveTo(x + width - 1, y + lastRow));
-      this.buffer.push(paint(bottomRight));
+      this.paint(x + width - 1, y + lastRow, bottomRight, cell);
     }
   }
 
@@ -377,13 +419,12 @@ export class TerminalOutput {
   ): void {
     const { vtNode, x, y, width, height } = node;
 
-    const text = textContent;
-    const lines = text.split('\n');
+    const lines = textContent.split('\n');
     const wrapped: string[] = [];
     const wrap = vtNode.styles.get('wrap') === 'wrap';
 
     for (const line of lines) {
-      if (wrap && width > 0 && line.length > width) {
+      if (wrap && width > 0 && stringWidth(line) > width) {
         const sub = wrapText(line, width);
         for (const l of sub) wrapped.push(l);
       } else {
@@ -392,31 +433,34 @@ export class TerminalOutput {
     }
 
     const align = String(vtNode.styles.get('textAlign') ?? 'left');
+    const cell = this.styleCell(vtNode, inheritedBg);
     for (let i = 0; i < wrapped.length && i < height; i++) {
       if (clip && (y + i < clip.y || y + i >= clip.y + clip.height)) continue;
       let line = wrapped[i];
-      if (line.length > width) line = line.substring(0, width);
+      if (stringWidth(line) > width) line = truncateToWidth(line, width);
       line = this.alignText(line, width, align);
       const clipped = this.clipLine(line, x, clip);
       if (clipped === null) continue;
-      line = this.applyStyles(clipped, vtNode, inheritedBg);
-      this.buffer.push(cursor.moveTo(x, y + i));
-      this.buffer.push(line);
+      let col = 0;
+      for (const ch of clipped) {
+        this.paint(x + col, y + i, ch, cell);
+        col += cellWidth(ch);
+      }
     }
   }
 
   private clipLine(line: string, x: number, clip: ClipRect | null): string | null {
     if (!clip) return line;
     if (x >= clip.x + clip.width) return null;
-    if (x + line.length <= clip.x) return null;
+    if (x + stringWidth(line) <= clip.x) return null;
     let s = line;
     let start = x;
     if (start < clip.x) {
-      s = s.substring(clip.x - start);
+      s = dropCellsFromStart(s, clip.x - start);
       start = clip.x;
     }
     const max = clip.x + clip.width - start;
-    if (s.length > max) s = s.substring(0, max);
+    if (stringWidth(s) > max) s = truncateToWidth(s, max);
     return s;
   }
 
@@ -425,9 +469,10 @@ export class TerminalOutput {
     width: number,
     align: string,
   ): string {
-    if (text.length >= width) return text;
+    const textWidth = stringWidth(text);
+    if (textWidth >= width) return text;
 
-    const pad = width - text.length;
+    const pad = width - textWidth;
     switch (align) {
       case 'center': {
         const left = Math.floor(pad / 2);
@@ -440,37 +485,5 @@ export class TerminalOutput {
       default:
         return text + ' '.repeat(pad);
     }
-  }
-
-  private applyStyles(text: string, node: VTNode, inheritedBg = ''): string {
-    const color = node.styles.get('color');
-    if (typeof color === 'string' && color.length > 0) {
-      text = wrapColorRgb(text, color, 'fg');
-    }
-
-    const bgColor = node.styles.get('backgroundColor');
-    const bg =
-      typeof bgColor === 'string' && bgColor.length > 0 ? bgColor : inheritedBg;
-    if (bg.length > 0) {
-      text = wrapColorRgb(text, bg, 'bg');
-    }
-
-    if (node.styles.get('fontWeight') === 'bold') {
-      text = `\x1b[1m${text}\x1b[22m`;
-    }
-    if (node.styles.get('fontStyle') === 'italic') {
-      text = `\x1b[3m${text}\x1b[23m`;
-    }
-    if (node.styles.get('textDecoration') === 'underline') {
-      text = `\x1b[4m${text}\x1b[24m`;
-    }
-    if (node.styles.get('textDecoration') === 'strikethrough') {
-      text = `\x1b[9m${text}\x1b[29m`;
-    }
-    if (node.styles.get('opacity') === 'dim') {
-      text = `\x1b[2m${text}\x1b[22m`;
-    }
-
-    return text;
   }
 }

@@ -14,7 +14,7 @@ let nextId = 0;
   template: '@if (hasBefore()) {<span class="vt-input-before"></span>}<ng-content></ng-content><span class="vt-input-after"></span>',
 })
 export class InputComponent implements OnDestroy {
-  private readonly elementRef = inject(ElementRef);
+  private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly inputService = inject(InputService);
   private readonly focusService = inject(FocusService);
   private readonly renderService = inject(RenderService);
@@ -41,6 +41,7 @@ export class InputComponent implements OnDestroy {
     const self = this;
     this.focusService.register({
       id: this.id,
+      element: this.elementRef.nativeElement,
       priority: 0,
       onFocus: () => {
         if (self.value() !== '') self.localValue.set(self.value());

@@ -28,11 +28,16 @@ function lastWrite(): string {
 }
 
 describe('TerminalOutput', () => {
-  const output = new TerminalOutput();
+  let output: TerminalOutput;
+
+  beforeEach(() => {
+    output = new TerminalOutput();
+  });
 
   it('clears the screen and moves the cursor by default', () => {
     const root = createVTNode('root');
     output.render(layoutNode(root), 80, 24);
+    output.flush();
 
     expect(written.length).toBeGreaterThan(0);
     const outputText = lastWrite();
@@ -43,13 +48,29 @@ describe('TerminalOutput', () => {
     expect(outputText).toContain('\x1b[?25h');
   });
 
-  it('skips the screen clear when clear is false', () => {
+  it('paints over the previous frame when clear is false (no screen erase)', () => {
     const root = createVTNode('root');
-    output.render(layoutNode(root), 80, 24, { clear: false });
+    const text = createVTNode('text');
+    text.textContent = 'frame1';
+    appendVTChild(root, text);
+    output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(text, 0, 0, 6, 1)]), 80, 24);
+    output.flush();
+    const first = lastWrite();
 
-    const written = lastWrite();
-    expect(written).not.toContain('\x1b[2J');
-    expect(written).not.toContain('\x1b[?25l');
+    const start = written.length;
+    text.textContent = 'frame2';
+    output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(text, 0, 0, 6, 1)]), 80, 24, { clear: false });
+    output.flush();
+    const second = written.slice(start).join('');
+
+    // The second pass must not erase the screen; only the changed cells are
+    // repainted (frame1 -> frame2 differs in exactly one cell).
+    expect(second).not.toContain('\x1b[2J');
+    expect(second).toContain('2');
+    expect(second).not.toContain('frame2');
+    expect(second).not.toContain('frame1');
+    // The first frame painted the text once.
+    expect(first.split('frame1').length - 1).toBe(1);
   });
 
   it('renders text nodes at their own position', () => {
@@ -69,12 +90,11 @@ describe('TerminalOutput', () => {
       80,
       24,
     );
+    output.flush();
 
     const written = lastWrite();
-    expect(written).toContain('\x1b[4;3H');
-    expect(written).toContain('hello');
-    expect(written).toContain('\x1b[4;9H');
-    expect(written).toContain('world');
+    // The whole row is one changed segment starting at x=0: '  hello world'.
+    expect(written).toContain('\x1b[4;1H  hello world');
   });
 
   it('inlines a single text child into the parent box', () => {
@@ -84,10 +104,11 @@ describe('TerminalOutput', () => {
     appendVTChild(root, text);
 
     output.render(layoutNode(root, 2, 3, 10, 1, [layoutNode(text, 0, 0, 5, 1)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
-    expect(written).toContain('\x1b[4;3H');
-    expect(written).toContain('hello');
+    // Inline text renders at the parent's position: row 4 (y=3) at x=2.
+    expect(written).toContain('\x1b[4;1H  hello');
   });
 
   it('truncates text wider than the node', () => {
@@ -107,6 +128,7 @@ describe('TerminalOutput', () => {
       80,
       24,
     );
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('abc');
@@ -121,6 +143,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, text);
 
     output.render(layoutNode(root, 0, 0, 5, 1, [layoutNode(text, 0, 0, 5, 1)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('   hi');
@@ -144,6 +167,7 @@ describe('TerminalOutput', () => {
       80,
       24,
     );
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('visible');
@@ -167,10 +191,23 @@ describe('TerminalOutput', () => {
       80,
       24,
     );
+    output.flush();
+    expect(lastWrite()).toContain('visible');
+    expect(lastWrite()).not.toContain('invisible');
 
-    const written = lastWrite();
-    expect(written).toContain('visible');
-    expect(written).not.toContain('invisible');
+    // Second frame: the visible node moves; the diff must not mention the
+    // zero-size node.
+    output.render(
+      layoutNode(root, 0, 0, 80, 24, [
+        layoutNode(visible, 1, 0, 7, 1),
+        layoutNode(invisible, 8, 0, 0, 0),
+      ]),
+      80,
+      24,
+    );
+    output.flush();
+    expect(lastWrite()).toContain('visible');
+    expect(lastWrite()).not.toContain('invisible');
   });
 
   it('paints a background fill for elements with backgroundColor', () => {
@@ -180,6 +217,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, box);
 
     output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(box, 0, 0, 4, 2)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('\x1b[48;2;255;0;0m');
@@ -193,6 +231,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, box);
 
     output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(box, 0, 0, 5, 3)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('\u250c');
@@ -209,6 +248,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, box);
 
     output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(box, 0, 0, 5, 3)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).not.toContain('\u250c');
@@ -224,6 +264,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, text);
 
     output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(text, 0, 0, 10, 1)]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('\x1b[1m');
@@ -253,6 +294,7 @@ describe('TerminalOutput', () => {
     ]);
 
     output.render(layoutNode(root, 0, 0, 80, 24, [scrollerLayout]), 80, 24);
+    output.flush();
 
     const written = lastWrite();
     expect(written).toContain('inside');

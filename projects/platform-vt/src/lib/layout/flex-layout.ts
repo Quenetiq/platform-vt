@@ -3,6 +3,7 @@ import type { LayoutNode, FlexStyles } from './layout-node';
 import { resolveFlexStyles, isFlexContainer } from './resolve-styles';
 import { readDomLayout, type DomLayoutNode } from './dom-adapter';
 import { wrapText } from '../output/wrap-text';
+import { stringWidth } from '../output/unicode-width';
 
 /**
  * Custom flexbox layout engine for terminal rendering.
@@ -101,7 +102,7 @@ export class FlexLayout {
         vtNode,
         x: Math.floor(x + padL),
         y: Math.floor(y + padT),
-        width: Math.min(vtNode.textContent.length, availW),
+        width: Math.min(stringWidth(vtNode.textContent), availW),
         height: lineCount + padV,
         children: [],
       };
@@ -320,14 +321,19 @@ export class FlexLayout {
    *
    * Mirrors the engine's sizing rules: main-axis extents of in-flow children
    * are summed, cross-axis extents are the maximum, gaps and padding are
-   * added. Absolute children and `display: none` nodes are skipped.
+   * added. Absolute children and `display: none` nodes are skipped — unless
+   * there are no in-flow children at all, in which case the absolute children
+   * define the natural size (they overlap, so the container must at least
+   * cover their maximum extents). Without this fallback, an absolutely
+   * positioned panel (e.g. an overlay panel holding a centered dialog) would
+   * measure 0×0 and get clamped away.
    */
   private measureNode(vtNode: VTNode, _parentIsRow: boolean): { w: number; h: number } {
     const styles = resolveFlexStyles(vtNode);
 
     const textBox = (): { w: number; h: number } => {
       const lines = vtNode.textContent.split('\n');
-      const w = Math.max(0, ...lines.map((l) => l.length));
+      const w = Math.max(0, ...lines.map((l) => stringWidth(l)));
       return {
         w: w + styles.paddingLeft + styles.paddingRight,
         h: Math.max(1, lines.length) + styles.paddingTop + styles.paddingBottom,
@@ -342,11 +348,18 @@ export class FlexLayout {
     let main = 0;
     let cross = 0;
     let inFlow = 0;
+    let absMain = 0;
+    let absCross = 0;
 
     for (const child of vtNode.children) {
       const cs = resolveFlexStyles(child);
-      if (cs.position === 'absolute' || child.styles.get('display') === 'none') continue;
+      if (child.styles.get('display') === 'none') continue;
       const size = this.measureNode(child, isRow);
+      if (cs.position === 'absolute') {
+        absMain = Math.max(absMain, size.h);
+        absCross = Math.max(absCross, size.w);
+        continue;
+      }
       if (isRow) {
         main += size.w;
         cross = Math.max(cross, size.h);
@@ -357,7 +370,14 @@ export class FlexLayout {
       inFlow++;
     }
 
-    if (inFlow > 1) main += styles.gap * (inFlow - 1);
+    if (inFlow === 0 && vtNode.children.length > 0) {
+      // Only absolutely positioned children: the container must at least
+      // cover their natural extents so downstream clamps don't collapse it.
+      main = absMain;
+      cross = absCross;
+    } else if (inFlow > 1) {
+      main += styles.gap * (inFlow - 1);
+    }
 
     return {
       w: (isRow ? main : cross) + styles.paddingLeft + styles.paddingRight,
@@ -421,14 +441,14 @@ export class FlexLayout {
             : Math.max(1, vtNode.textContent.split('\n').length);
         return lines + padMain;
       }
-      return (parentIsRow ? Math.max(1, vtNode.textContent.length) : 1) + padMain;
+      return (parentIsRow ? Math.max(1, stringWidth(vtNode.textContent)) : 1) + padMain;
     }
 
     if (vtNode.children.length === 0) {
       if (!isFlexContainer(vtNode)) {
         const text = vtNode.textContent;
         return parentIsRow
-          ? Math.max(1, text.length)
+          ? Math.max(1, stringWidth(text))
           : Math.max(1, text.split('\n').length);
       }
       const min = parentIsRow ? styles.minWidth : styles.minHeight;

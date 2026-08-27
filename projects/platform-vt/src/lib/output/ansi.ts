@@ -101,7 +101,56 @@ export const txt = {
   italic: (s: string): string => `${ESC}3m${s}${ESC}23m`,
   underline: (s: string): string => `${ESC}4m${s}${ESC}24m`,
   strikethrough: (s: string): string => `${ESC}9m${s}${ESC}29m`,
+  /** Reverse-video text (swap foreground and background). */
+  inverse: (s: string): string => `${ESC}7m${s}${ESC}27m`,
 };
 
 /** Reset all terminal styling to defaults. */
 export const reset = (): string => `${ESC}0m`;
+
+/**
+ * Terminal mode switching helpers (DECSET/DECRST).
+ */
+export const mode = {
+  /** Use the alternative screen buffer (fullscreen apps). */
+  altScreen: (): string => `${ESC}?1049h`,
+  /** Return to the normal screen buffer. */
+  exitAltScreen: (): string => `${ESC}?1049l`,
+  /** Report paste events wrapped in `\x1b[200~ ... \x1b[201~`. */
+  bracketedPaste: (): string => `${ESC}?2004h`,
+  /** Stop reporting paste events. */
+  exitBracketedPaste: (): string => `${ESC}?2004l`,
+  /** Report application cursor keys (arrows emit `\x1bOA` etc.). */
+  applicationCursorKeys: (): string => `${ESC}?1h`,
+  /** Stop reporting application cursor keys. */
+  exitApplicationCursorKeys: (): string => `${ESC}?1l`,
+  /** Report focus events (`\x1b[I` / `\x1b[O`). */
+  focusEvents: (): string => `${ESC}?1004h`,
+  /** Stop reporting focus events. */
+  exitFocusEvents: (): string => `${ESC}?1004l`,
+};
+
+/**
+ * OSC sequences (operating system commands).
+ */
+export const osc = {
+  /**
+   * Wrap text in an OSC 8 hyperlink. Terminals render the text as a clickable
+   * link (usually Ctrl/Cmd+click to open).
+   *
+   * @param url - The target URL.
+   * @param text - The visible link text.
+   * @param id - Optional link id for grouping links.
+   */
+  hyperlink: (url: string, text: string, id?: string): string =>
+    `\x1b]8;${id ? `id=${id};` : ''}${url}\x1b\\${text}\x1b]8;;\x1b\\`,
+  /**
+   * Copy text to the system clipboard (OSC 52).
+   *
+   * @param text - Text to copy. The terminal must support OSC 52 writes.
+   */
+  clipboardWrite: (text: string): string =>
+    `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}\x07`,
+  /** Request the current clipboard content (OSC 52 read). */
+  clipboardRead: (): string => `\x1b]52;c;?\x07`,
+};

@@ -13,7 +13,7 @@ import { OverlayContainer } from './overlay-container';
   selector: 'vt-test-app',
   imports: [BoxComponent, TextComponent],
   template: `
-    <vt-box id="anchor" [padding]="1" border="single">
+    <vt-box id="anchor" [width]="16" [height]="3" [padding]="1" border="single">
       <vt-text content="anchor content"></vt-text>
     </vt-box>
   `,
@@ -36,6 +36,7 @@ describe('overlay (CDK)', () => {
   let render: RenderService;
   let overlay: OverlayService;
   let container: OverlayContainer;
+  let terminal: TerminalService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -48,7 +49,7 @@ describe('overlay (CDK)', () => {
       ],
     });
 
-    const terminal = TestBed.inject(TerminalService);
+    terminal = TestBed.inject(TerminalService);
     vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
 
     fixture = TestBed.createComponent(OverlayTestApp);
@@ -98,15 +99,23 @@ describe('overlay (CDK)', () => {
   });
 
   it('positions the overlay relative to an anchor rectangle', () => {
+    // Note: zoneless TestBed does not reflect dynamic style bindings to host
+    // attributes, so set the anchor size directly (the demo app applies them
+    // through the real change-detection pipeline).
+    const anchorEl = document.getElementById('anchor')!;
+    anchorEl.setAttribute('width', '16');
+    anchorEl.setAttribute('height', '3');
     render.flush();
-    const anchorRect = render.getElementRect(document.getElementById('anchor')!);
+    const anchorRect = render.getElementRect(anchorEl);
     expect(anchorRect).not.toBeNull();
 
     const ref = overlay.create();
+    ref.attach(TestTooltip);
     ref.setPositionFromRect(anchorRect!, 'bottom', 0, 1);
     render.flush();
 
     const panelRect = render.getElementRect(ref.hostElement);
+    expect(panelRect).not.toBeNull();
     expect(panelRect!.x).toBe(anchorRect!.x);
     expect(panelRect!.y).toBe(anchorRect!.y + anchorRect!.height + 1);
     ref.dispose();
@@ -156,5 +165,39 @@ describe('overlay (CDK)', () => {
     expect(rect!.x).toBe(3);
     expect(rect!.y).toBe(4);
     ref.dispose();
+  });
+
+  it('does not collapse when the panel content is absolutely positioned', () => {
+    render.flush();
+    const ref = overlay.create();
+    ref.attach(TestTooltip);
+    // Centered dialogs often position their host absolutely inside the panel.
+    // The panel must still be sized by its absolute content instead of
+    // clamping to 0×0 (regression: absolute children were skipped during
+    // measurement, so the panel collapsed to nothing).
+    const host = ref.hostElement.firstElementChild;
+    host?.setAttribute('position', 'absolute');
+    host?.setAttribute('left', '0');
+    host?.setAttribute('top', '0');
+    ref.setPosition(5, 5);
+    render.flush();
+
+    const panelRect = render.getElementRect(ref.hostElement);
+    expect(panelRect).not.toBeNull();
+    expect(panelRect!.width).toBeGreaterThan(0);
+    expect(panelRect!.height).toBeGreaterThan(0);
+    // Natural content size of the tooltip box (9×3), not clamped to 0.
+    expect(panelRect!.width).toBe(9);
+    expect(panelRect!.height).toBe(3);
+    ref.dispose();
+  });
+
+  it('overlay layer spans the full terminal viewport', () => {
+    const containerEl = container.getContainerElement();
+    render.flush();
+    const rect = render.getElementRect(containerEl);
+    expect(rect).not.toBeNull();
+    expect(rect!.width).toBe(terminal.columns());
+    expect(rect!.height).toBe(terminal.rows());
   });
 });

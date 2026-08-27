@@ -14,7 +14,7 @@ let nextId = 0;
   template: '',
 })
 export class ButtonComponent {
-  private readonly elementRef = inject(ElementRef);
+  private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly focusService = inject(FocusService);
   private readonly inputService = inject(InputService);
   private readonly renderService = inject(RenderService);
@@ -35,6 +35,7 @@ export class ButtonComponent {
     const self = this;
     this.focusService.register({
       id: this.id,
+      element: this.elementRef.nativeElement,
       priority: 1,
       onFocus: () => {
         self.isFocused.set(true);

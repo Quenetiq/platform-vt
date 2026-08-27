@@ -3,7 +3,9 @@ import { FlexLayout } from '../layout/flex-layout';
 import type { LayoutNode } from '../layout/layout-node';
 import type { LayoutRect } from '../renderer/vt-node';
 import { TerminalOutput } from '../output/terminal-output';
+import type { CellRegion } from '../output/screen-buffer';
 import { TerminalService } from './terminal.service';
+import { SelectionService } from './selection.service';
 
 @Injectable()
 export class RenderService {
@@ -11,6 +13,7 @@ export class RenderService {
   private readonly injector = inject(Injector);
   private readonly layout = new FlexLayout();
   private readonly output = new TerminalOutput();
+  private readonly selectionService = inject(SelectionService, { optional: true });
 
   readonly renderCount = signal(0);
   readonly lastRenderTime = signal(0);
@@ -24,6 +27,22 @@ export class RenderService {
   private layerLayouts: LayoutNode[] = [];
 
   private renderScheduled = false;
+
+  /** Listeners notified after every completed render pass. */
+  private readonly flushListeners = new Set<() => void>();
+
+  /**
+   * Register a callback invoked after every completed render pass.
+   *
+   * Layout sizes are final at this point, so listeners can read element
+   * rectangles (`getElementRect`) and schedule follow-up renders.
+   *
+   * @returns A function that unregisters the callback.
+   */
+  onFlush(listener: () => void): () => void {
+    this.flushListeners.add(listener);
+    return () => this.flushListeners.delete(listener);
+  }
 
   scheduleRender(): void {
     if (this.renderScheduled) return;
@@ -51,19 +70,40 @@ export class RenderService {
     const rootEl = document.getElementById('vt-root');
     if (!rootEl) return;
 
-    // Each child of #vt-root is a layer: the first is the application itself,
-    // later layers (overlays) paint on top without clearing the screen.
-    const layers: LayoutNode[] = [];
-    for (let i = 0; i < rootEl.children.length; i++) {
-      const layerRoot = rootEl.children[i];
-      const layoutTree = this.layout.calculateFromDom(layerRoot, columns, rows);
-      layers.push(layoutTree);
-      this.output.render(layoutTree, columns, rows, { clear: i === 0 });
-    }
-    this.layerLayouts = layers;
+    // Render passes loop until the tree stabilises: listeners (e.g. overlay
+    // repositioning) may schedule another pass, which converges within this
+    // call instead of leaking into a later tick.
+    const MAX_PASSES = 10;
+    let passes = 0;
+    do {
+      this.renderScheduled = false;
 
-    this.renderCount.update((c) => c + 1);
-    this.lastRenderTime.set(Date.now());
+      // Each child of #vt-root is a layer: the first is the application itself,
+      // later layers (overlays) paint on top without clearing the screen.
+      const colorMode = this.terminal.capabilities().colors;
+      const selection = this.selectionService?.region() ?? null;
+      const layers: LayoutNode[] = [];
+      for (let i = 0; i < rootEl.children.length; i++) {
+        const layerRoot = rootEl.children[i];
+        const layoutTree = this.layout.calculateFromDom(layerRoot, columns, rows);
+        layers.push(layoutTree);
+        this.output.render(layoutTree, columns, rows, {
+          clear: i === 0,
+          colorMode,
+          selection: i === 0 ? selection : null,
+        });
+      }
+      this.layerLayouts = layers;
+      this.output.flush();
+
+      this.renderCount.update((c) => c + 1);
+      this.lastRenderTime.set(Date.now());
+
+      for (const listener of this.flushListeners) listener();
+      passes++;
+    } while (this.renderScheduled && passes < MAX_PASSES);
+
+    this.renderScheduled = false;
   }
 
   /** The layout tree from the last render, or null before the first render. */
@@ -72,16 +112,25 @@ export class RenderService {
   }
 
   /**
-   * Find an element's layout rectangle (columns/rows) in the last render.
+   * Extract the text of a screen region from the last painted frame.
+   *
+   * Used by {@link SelectionService} to copy the selected text.
+   */
+  getText(region: CellRegion): string {
+    return this.output.text(region);
+  }
+
+  /**
+   * Find an element's layout node in the last render.
    *
    * Walks from the element up to its layer root to determine the layer, then
    * descends the layout tree by DOM child indices. Returns `null` when the
    * element is not part of the rendered tree (e.g. never laid out).
    *
    * @param element - A DOM element inside one of the rendered layers.
-   * @returns The element's rectangle, or null.
+   * @returns The element's layout node, or null.
    */
-  getElementRect(element: Element): LayoutRect | null {
+  getElementLayout(element: Element): LayoutNode | null {
     const rootEl = document.getElementById('vt-root');
     if (!rootEl || this.layerLayouts.length === 0) return null;
 
@@ -106,6 +155,18 @@ export class RenderService {
     }
     if (current !== layerEl) return null;
 
+    return node;
+  }
+
+  /**
+   * Find an element's layout rectangle (columns/rows) in the last render.
+   *
+   * @param element - A DOM element inside one of the rendered layers.
+   * @returns The element's rectangle, or null.
+   */
+  getElementRect(element: Element): LayoutRect | null {
+    const node = this.getElementLayout(element);
+    if (!node) return null;
     return { x: node.x, y: node.y, width: node.width, height: node.height };
   }
 

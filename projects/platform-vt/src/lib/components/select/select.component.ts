@@ -15,7 +15,7 @@ let nextId = 0;
   template: '',
 })
 export class SelectComponent {
-  private readonly elementRef = inject(ElementRef);
+  private readonly elementRef = inject<ElementRef<HTMLElement & VTNode>>(ElementRef);
   private readonly renderService = inject(RenderService);
   private readonly inputService = inject(InputService);
   private readonly focusService = inject(FocusService);
@@ -62,6 +62,7 @@ export class SelectComponent {
 
     this.focusService.register({
       id: this.id,
+      element: this.elementRef.nativeElement,
       priority: 1,
       onFocus: () => { this.renderService.scheduleRender(); },
       onBlur: () => { this.renderService.scheduleRender(); },

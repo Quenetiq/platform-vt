@@ -204,3 +204,178 @@ export function wrapColorRgb(
   if (!code) return text;
   return `${code}${text}\x1b[${type === 'fg' ? '39' : '49'}m`;
 }
+
+/**
+ * How many colors the current terminal can render.
+ */
+export type ColorMode = 16 | 256 | 'truecolor';
+
+const ANSI16_RGB: [number, number, number][] = [
+  [0, 0, 0], // black
+  [205, 49, 49], // red
+  [56, 179, 100], // green
+  [201, 173, 47], // yellow
+  [52, 122, 219], // blue
+  [211, 84, 160], // magenta
+  [40, 166, 176], // cyan
+  [200, 200, 200], // white
+  [105, 105, 105], // gray / bright black
+  [255, 90, 90], // bright red
+  [110, 220, 150], // bright green
+  [250, 235, 120], // bright yellow
+  [140, 180, 255], // bright blue
+  [255, 160, 210], // bright magenta
+  [120, 220, 230], // bright cyan
+  [255, 255, 255], // bright white
+];
+
+/** ANSI palette index → color name (mirrors {@link COLOR_MAP}). */
+const ANSI16_NAMES = [
+  'black',
+  'red',
+  'green',
+  'yellow',
+  'blue',
+  'magenta',
+  'cyan',
+  'white',
+  'gray',
+  'bright-red',
+  'bright-green',
+  'bright-yellow',
+  'bright-blue',
+  'bright-magenta',
+  'bright-cyan',
+  'bright-white',
+];
+
+/**
+ * Map an RGB color to the closest index in the standard 256-color palette.
+ *
+ * The palette is the well-known xterm cube: 16 system colors, then a 6×6×6
+ * cube, then a 24-step grayscale ramp.
+ *
+ * @param r - Red channel 0-255.
+ * @param g - Green channel 0-255.
+ * @param b - Blue channel 0-255.
+ * @returns The palette index 0-255.
+ */
+export function rgbTo256(r: number, g: number, b: number): number {
+  if (r === g && g === b) {
+    // Grayscale: either a cube gray level or the dedicated grayscale ramp.
+    if (r < 8) return 16;
+    if (r > 248) return 231;
+    const v = Math.round((r - 8) / 10);
+    return 232 + v;
+  }
+  const toCube = (v: number): number => {
+    if (v < 48) return 0;
+    if (v < 114) return 1;
+    return Math.min(5, Math.round((v - 35) / 40));
+  };
+  const ri = toCube(r);
+  const gi = toCube(g);
+  const bi = toCube(b);
+  return 16 + 36 * ri + 6 * gi + bi;
+}
+
+/**
+ * Map an RGB color to the closest of the 16 basic ANSI colors.
+ *
+ * Uses simple Euclidean distance in RGB space.
+ *
+ * @returns The ANSI color index 0-15.
+ */
+export function rgbToNearest16(r: number, g: number, b: number): number {
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < ANSI16_RGB.length; i++) {
+    const [cr, cg, cb] = ANSI16_RGB[i]!;
+    const dr = cr - r;
+    const dg = cg - g;
+    const db = cb - b;
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function rgbCode(index: number, type: 'fg' | 'bg'): string {
+  const prefix = type === 'fg' ? '38' : '48';
+  return `\x1b[${prefix};5;${String(index)}m`;
+}
+
+/**
+ * Resolve a color name to an ANSI code adapted to the terminal's color
+ * capabilities.
+ *
+ * In `'truecolor'` mode named colors and `#hex`/`rgb()` values emit exact
+ * 24-bit codes ({@link resolveColorRgb}). In `256` mode arbitrary colors are
+ * snapped to the xterm 256-color palette. In `16` mode they are snapped to
+ * the nearest of the 16 basic ANSI colors.
+ *
+ * The special name `256:<index>` (e.g. `'256:42'`) explicitly selects a
+ * palette entry in `256`/`'truecolor'` mode and is snapped to the nearest
+ * basic color in `16` mode.
+ *
+ * @param name - Color name, `#hex`, `rgb(r,g,b)` or `256:<index>`.
+ * @param type - `'fg'` for foreground, `'bg'` for background.
+ * @param mode - The terminal's color capability.
+ * @returns The ANSI escape string, or `null` if the color is unknown.
+ *
+ * @example
+ * ```typescript
+ * resolveColorAdaptive('red', 'fg', 16);           // '\x1b[31m'
+ * resolveColorAdaptive('#ff8800', 'fg', 256);      // '\x1b[38;5;214m'
+ * resolveColorAdaptive('#ff8800', 'fg', 'truecolor'); // '\x1b[38;2;255;136;0m'
+ * ```
+ */
+export function resolveColorAdaptive(
+  name: string,
+  type: 'fg' | 'bg',
+  mode: ColorMode,
+): string | null {
+  const key = name.toLowerCase();
+  const explicit256 = /^256:(\d{1,3})$/.exec(key);
+  if (explicit256) {
+    const index = Math.min(255, Number(explicit256[1]));
+    if (mode === 16) {
+      return resolveColor(String(index < 8 ? index : index >= 232 ? 7 : (index % 16)), type);
+    }
+    return rgbCode(index, type);
+  }
+
+  if (mode === 'truecolor') return resolveColorRgb(name, type);
+
+  const rgb = COLOR_RGB[key] ?? parseColor(name);
+  if (rgb) {
+    if (mode === 256) return rgbCode(rgbTo256(rgb[0], rgb[1], rgb[2]), type);
+    return resolveColor(ANSI16_NAMES[rgbToNearest16(rgb[0], rgb[1], rgb[2])]!, type);
+  }
+
+  // Known named colors always resolve through the standard palette.
+  return resolveColor(name, type);
+}
+
+/**
+ * Wrap text with a color adapted to the terminal's capabilities.
+ *
+ * @param text - The text to wrap.
+ * @param name - Color name, `#hex`, `rgb(r,g,b)` or `256:<index>`.
+ * @param type - `'fg'` for foreground, `'bg'` for background.
+ * @param mode - The terminal's color capability.
+ * @returns The wrapped text, or the original text if the color is unknown.
+ */
+export function wrapColorAdaptive(
+  text: string,
+  name: string,
+  type: 'fg' | 'bg',
+  mode: ColorMode,
+): string {
+  const code = resolveColorAdaptive(name, type, mode);
+  if (!code) return text;
+  return `${code}${text}\x1b[${type === 'fg' ? '39' : '49'}m`;
+}

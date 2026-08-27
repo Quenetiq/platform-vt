@@ -79,3 +79,86 @@ describe('FocusService', () => {
     expect(focus.focusedId()).toBe('b');
   });
 });
+
+describe('FocusService focus traps', () => {
+  let focus: FocusService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [InputService, FocusService],
+    });
+    focus = TestBed.inject(FocusService);
+  });
+
+  function makeFocusable(id: string, priority: number, element?: Element): FocusableElement {
+    return { id, priority, element, onFocus: () => undefined, onBlur: () => undefined };
+  }
+
+  it('restricts tab navigation to elements inside the trap', () => {
+    const trap = document.createElement('div');
+    const inside = document.createElement('button');
+    const outside = document.createElement('button');
+    trap.appendChild(inside);
+
+    focus.register(makeFocusable('inside-1', 1, inside));
+    focus.register(makeFocusable('outside-1', 1, outside));
+    focus.register(makeFocusable('outside-2', 1, outside));
+
+    focus.setFocusTrap(trap);
+
+    focus.next();
+    expect(focus.focusedId()).toBe('inside-1');
+    // Cycling never escapes the trap.
+    focus.next();
+    expect(focus.focusedId()).toBe('inside-1');
+  });
+
+  it('refuses to focus elements outside the trap', () => {
+    const trap = document.createElement('div');
+    const inside = document.createElement('button');
+    const outside = document.createElement('button');
+    trap.appendChild(inside);
+
+    focus.register(makeFocusable('inside-1', 1, inside));
+    focus.register(makeFocusable('outside-1', 1, outside));
+
+    focus.setFocusTrap(trap);
+    focus.focus('outside-1');
+    expect(focus.focusedId()).toBe('inside-1');
+  });
+
+  it('releases the trap with null', () => {
+    const trap = document.createElement('div');
+    const inside = document.createElement('button');
+    const outside = document.createElement('button');
+    trap.appendChild(inside);
+
+    focus.register(makeFocusable('inside-1', 1, inside));
+    focus.register(makeFocusable('outside-1', 1, outside));
+
+    focus.setFocusTrap(trap);
+    focus.setFocusTrap(null);
+    focus.next();
+    expect(focus.focusedId()).toBe('outside-1');
+  });
+
+  it('focusIn focuses the first focusable inside the container', () => {
+    const trap = document.createElement('div');
+    const first = document.createElement('button');
+    const second = document.createElement('button');
+    trap.appendChild(first);
+    trap.appendChild(second);
+
+    focus.register(makeFocusable('first-1', 0, first));
+    focus.register(makeFocusable('second-1', 1, second));
+
+    const ok = focus.focusIn(trap);
+    expect(ok).toBe(true);
+    expect(focus.focusedId()).toBe('first-1');
+  });
+
+  it('focusIn returns false when nothing focusable is inside', () => {
+    const empty = document.createElement('div');
+    expect(focus.focusIn(empty)).toBe(false);
+  });
+});

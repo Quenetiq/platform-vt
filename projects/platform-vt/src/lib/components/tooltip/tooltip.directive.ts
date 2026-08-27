@@ -83,9 +83,14 @@ export class TooltipDirective {
 
   private positionOverlay(): void {
     if (!this.overlayRef) return;
-    const rect = this.renderService.getElementRect(this.elementRef.nativeElement);
-    if (!rect) return;
-    this.overlayRef.setPositionFromRect(rect, this.position(), 0, this.offset());
+    // Lazy rect: the overlay re-resolves the anchor on every render pass, so
+    // the tooltip tracks its host on scroll and terminal resize.
+    this.overlayRef.setPositionFromRect(
+      () => this.renderService.getElementRect(this.elementRef.nativeElement),
+      this.position(),
+      0,
+      this.offset(),
+    );
   }
 
   private hide(): void {
