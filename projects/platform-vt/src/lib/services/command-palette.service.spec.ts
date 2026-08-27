@@ -10,6 +10,7 @@ import { TerminalService } from './terminal.service';
 import { InputService } from './input.service';
 import { FocusService } from './focus.service';
 import { provideClickService } from './click.service';
+import { cleanupDom } from '../testing/cleanup-dom';
 
 describe('CommandPaletteService', () => {
   let palette: CommandPaletteService;
@@ -37,6 +38,7 @@ describe('CommandPaletteService', () => {
     const terminal = TestBed.inject(TerminalService);
     vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
 
+    cleanupDom();
     palette = TestBed.inject(CommandPaletteService);
     input = TestBed.inject(InputService);
     container = TestBed.inject(OverlayContainer);

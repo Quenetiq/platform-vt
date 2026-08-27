@@ -9,6 +9,7 @@ import { MouseService } from './mouse.service';
 import { RenderService } from './render.service';
 import { TerminalService } from './terminal.service';
 import { provideClickService } from './click.service';
+import { cleanupDom } from '../testing/cleanup-dom';
 import type { VTClickEvent } from './sgr-mouse';
 
 @Component({
@@ -59,7 +60,9 @@ describe('click dispatch (end-to-end)', () => {
     mouse = TestBed.inject(MouseService);
     render = TestBed.inject(RenderService);
 
-    // The render pipeline locates the tree under #vt-root.
+    // The render pipeline locates the tree under #vt-root; purge any
+    // stale root/overlay elements from the shared document first.
+    cleanupDom();
     (fixture.nativeElement as HTMLElement).id = 'vt-root';
   });
 

@@ -9,6 +9,7 @@ import { InputService } from '../services/input.service';
 import { FocusService } from '../services/focus.service';
 import { provideClickService } from '../services/click.service';
 import { provideKeymapService } from '../services/keymap.service';
+import { cleanupDom } from '../testing/cleanup-dom';
 import { required } from '../forms/validators';
 import { BoxComponent } from '../components/box/box.component';
 import { TextComponent } from '../components/text/text.component';
@@ -51,7 +52,8 @@ describe('DialogService', () => {
     const terminal = TestBed.inject(TerminalService);
     vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
 
-    dialogs = TestBed.inject(DialogService);
+cleanupDom();
+        dialogs = TestBed.inject(DialogService);
     focus = TestBed.inject(FocusService);
     input = TestBed.inject(InputService);
   });

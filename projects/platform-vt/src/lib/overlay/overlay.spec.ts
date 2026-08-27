@@ -8,6 +8,7 @@ import { RenderService } from '../services/render.service';
 import { TerminalService } from '../services/terminal.service';
 import { OverlayService, provideOverlay } from './overlay.service';
 import { OverlayContainer } from './overlay-container';
+import { cleanupDom } from '../testing/cleanup-dom';
 
 @Component({
   selector: 'vt-test-app',
@@ -57,7 +58,8 @@ describe('overlay (CDK)', () => {
     overlay = TestBed.inject(OverlayService);
     container = TestBed.inject(OverlayContainer);
 
-    (fixture.nativeElement as HTMLElement).id = 'vt-root';
+cleanupDom();
+        (fixture.nativeElement as HTMLElement).id = 'vt-root';
   });
 
   it('creates a panel in the overlay layer', () => {

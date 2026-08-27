@@ -7,6 +7,7 @@ import { TerminalService } from './terminal.service';
 import { InputService } from './input.service';
 import { FocusService } from './focus.service';
 import { provideClickService } from './click.service';
+import { cleanupDom } from '../testing/cleanup-dom';
 
 describe('TerminalErrorHandler', () => {
   let handler: TerminalErrorHandler;
@@ -25,6 +26,7 @@ describe('TerminalErrorHandler', () => {
         provideTerminalErrorHandler(),
       ],
     });
+    cleanupDom();
     terminal = TestBed.inject(TerminalService);
     handler = TestBed.inject(TerminalErrorHandler);
     const root = document.createElement('app-root');
