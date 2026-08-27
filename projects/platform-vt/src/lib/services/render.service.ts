@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, makeEnvironmentProviders, afterNextRender, Injector, type EnvironmentProviders } from '@angular/core';
+import { Injectable, inject, signal, makeEnvironmentProviders, afterNextRender, Injector, DestroyRef, type EnvironmentProviders } from '@angular/core';
 import { FlexLayout } from '../layout/flex-layout';
 import type { LayoutNode } from '../layout/layout-node';
 import type { LayoutRect } from '../renderer/vt-node';
@@ -11,9 +11,21 @@ import { SelectionService } from './selection.service';
 export class RenderService {
   private readonly terminal = inject(TerminalService);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly layout = new FlexLayout();
   private readonly output = new TerminalOutput();
   private readonly selectionService = inject(SelectionService, { optional: true });
+
+  /** Set when the owning injector is destroyed (test teardown, app shutdown). */
+  private destroyed = false;
+
+  constructor() {
+    // Pending render timers must never fire against a destroyed injector:
+    // that throws NG0205 and leaks errors into unrelated tests.
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
 
   readonly renderCount = signal(0);
   readonly lastRenderTime = signal(0);
@@ -45,6 +57,7 @@ export class RenderService {
   }
 
   scheduleRender(): void {
+    if (this.destroyed) return;
     if (this.renderScheduled) return;
     this.renderScheduled = true;
 
@@ -57,11 +70,12 @@ export class RenderService {
     // Safety net for calls made outside a change-detection cycle (e.g. resize):
     // if no CD pass runs, the afterNextRender hook would never fire.
     setTimeout(() => {
-      if (this.renderScheduled) this.flush();
+      if (this.renderScheduled && !this.destroyed) this.flush();
     }, 50);
   }
 
   flush(): void {
+    if (this.destroyed) return;
     this.renderScheduled = false;
 
     const columns = this.terminal.columns();
