@@ -1,13 +1,14 @@
 import { Component, inject, input, effect, ElementRef, signal } from '@angular/core';
-import * as fs from 'node:fs';
 import { cursor } from '../../output/ansi';
+import { readFileBuffer } from '../../utils/node';
+import { parsePpmP6, sixelWrite } from '../../output/sixel';
 import { RenderService } from '../../services/render.service';
 import { TerminalService } from '../../services/terminal.service';
 
 /**
  * Image transfer protocol used by {@link ImageComponent}.
  */
-export type ImageProtocol = 'iterm2' | 'kitty';
+export type ImageProtocol = 'iterm2' | 'kitty' | 'sixel';
 
 /**
  * Renders an actual image in supporting terminals.
@@ -19,10 +20,12 @@ export type ImageProtocol = 'iterm2' | 'kitty';
  * - **iTerm2** (default): OSC 1337 inline images.
  * - **kitty**: the kitty graphics protocol (transmit + place at the cell
  *   position, chunks of 4096 bytes).
+ * - **sixel**: the DEC sixel protocol — the source file must be a PPM P6
+ *   image (plain raster, no decoder dependency); colors are quantized to a
+ *   64-register palette.
  *
  * `width`/`height` are given in cells and converted to pixels using the
  * standard 8×16 glyph metrics; pass `widthPx`/`heightPx` for exact sizes.
- * Sixel is not bundled.
  *
  * @example
  * ```html
@@ -80,13 +83,18 @@ export class ImageComponent {
   }
 
   private emitImage(src: string, el: HTMLElement): void {
-    if (typeof process === 'undefined') return;
-    const buffer = fs.readFileSync(src);
+    const buffer = readFileBuffer(src);
+    if (!buffer) throw new Error(`Cannot read image: ${src}`);
     const widthPx = this.widthPx() ?? this.width() * 8;
     const heightPx = this.heightPx() ?? this.height() * 16;
 
-    if (this.protocol() === 'kitty') {
+    const protocol = this.protocol();
+    if (protocol === 'kitty') {
       this.emitKitty(buffer, widthPx, heightPx, el);
+      return;
+    }
+    if (protocol === 'sixel') {
+      this.emitSixel(buffer, el);
       return;
     }
     const base64 = buffer.toString('base64');
@@ -116,6 +124,21 @@ export class ImageComponent {
       if (!rect) return;
       unregister();
       this.terminal.write(cursor.moveTo(rect.x, rect.y) + chunks.join(''));
+    });
+  }
+
+  /**
+   * Emit a PPM P6 image via the sixel protocol, placed at the component's
+   * cell position after the next render pass.
+   */
+  private emitSixel(buffer: Buffer, el: HTMLElement): void {
+    const { width, height, rgb } = parsePpmP6(buffer);
+    const sequence = sixelWrite(width, height, rgb);
+    const unregister = this.renderService.onFlush(() => {
+      const rect = this.renderService.getElementRect(el);
+      if (!rect) return;
+      unregister();
+      this.terminal.write(cursor.moveTo(rect.x, rect.y) + sequence);
     });
   }
 }

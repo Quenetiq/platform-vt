@@ -46,6 +46,9 @@ export class SplitViewComponent implements OnDestroy {
   /** Divider glyph (defaults to `│` for rows, `─` for columns). */
   readonly dividerChar = input<string>('');
 
+  /** Grow factor for the split container. */
+  readonly flexGrow = input<number>(0);
+
   readonly ratioChange = output<number>();
 
   private readonly id = `vt-split-${String(nextId++)}`;
@@ -131,6 +134,7 @@ export class SplitViewComponent implements OnDestroy {
     el.setAttribute('display', 'flex');
     el.setAttribute('flex-direction', direction);
     el.setAttribute('flex-shrink', '0');
+    el.setAttribute('flex-grow', String(this.flexGrow()));
     el.setAttribute('min-height', '1');
 
     // Panels: the projected elements (not our divider).

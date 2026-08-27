@@ -35,6 +35,7 @@ export {
   isZeroWidthChar,
 } from './lib/output/unicode-width';
 export { wrapText } from './lib/output/wrap-text';
+export { sixelEncode, sixelWrite, parsePpmP6 } from './lib/output/sixel';
 
 // Services
 export { TerminalService } from './lib/services/terminal.service';
@@ -135,12 +136,14 @@ export { TreeComponent } from './lib/components/tree/tree.component';
 export type { TreeNode } from './lib/components/tree/tree.component';
 export { AutocompleteComponent } from './lib/components/autocomplete/autocomplete.component';
 export { ImageComponent } from './lib/components/image/image.component';
+export { TableComponent } from './lib/components/table/table.component';
 export type { TableSort, TableSortDirection } from './lib/components/table/table.component';
 export { MenuComponent, MenuService } from './lib/components/menu/menu.component';
 export type { MenuItem } from './lib/components/menu/menu.component';
 
 // Forms
 export { FormComponent, FormFieldComponent } from './lib/forms/form.component';
+export type { FormControl } from './lib/forms/form.component';
 export { compose, required, minLength, maxLength, pattern, email, min, max, equals } from './lib/forms/validators';
 export type { ValidatorFn } from './lib/forms/validators';
 

@@ -96,8 +96,10 @@ export class TableComponent {
       this.scrollOffset.set(offset);
       const data = sorted.slice(offset, offset + viewport);
 
+      // Widths are computed from ALL rows so the header, the visible rows
+      // and the borders stay aligned while scrolling or re-sorting.
       const colWidths = cols.map((col, i) => {
-        const maxData = Math.max(...data.map((r) => (r[i] ?? '').length));
+        const maxData = Math.max(...allRows.map((r) => (r[i] ?? '').length));
         const header = sort?.column === i ? `${col} ${sort.direction === 'asc' ? '\u25B2' : '\u25BC'}` : col;
         return Math.max(header.length, maxData) + 2;
       });

@@ -18,6 +18,8 @@ import { provideWheelService } from './services/wheel.service';
 import { provideSelectionService } from './services/selection.service';
 import { provideDragService } from './services/drag.service';
 import { provideCommandPalette } from './services/command-palette.service';
+import { DialogService } from './overlay/dialog.service';
+import { MenuService } from './components/menu/menu.component';
 
 export interface TerminalBootstrapOptions extends ApplicationConfig {
   /**
@@ -118,6 +120,8 @@ export function bootstrapTerminal(
     provideSelectionService(),
     provideDragService(),
     provideCommandPalette(),
+    DialogService,
+    MenuService,
     provideZonelessChangeDetection(),
     ...(options?.providers ?? []),
   ];

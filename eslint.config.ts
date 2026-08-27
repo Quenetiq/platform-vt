@@ -10,7 +10,13 @@ export default tseslint.config(
     ],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: [
+            'projects/platform-vt/forms/public-api.ts',
+            'projects/platform-vt/keymaps/public-api.ts',
+            'projects/platform-vt/output/public-api.ts',
+          ],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

@@ -1,5 +1,5 @@
 import { Injectable, inject, makeEnvironmentProviders, signal, type EnvironmentProviders } from '@angular/core';
-import * as fs from 'node:fs';
+import { nodeFs } from '../utils/node';
 import { TerminalService } from './terminal.service';
 
 /**
@@ -71,6 +71,8 @@ export class SessionRecorder {
    * @param opts - Optional title/command metadata.
    */
   exportAsciinema(filePath: string, opts: { title?: string; command?: string } = {}): void {
+    const fs = nodeFs();
+    if (!fs) return;
     const firstTime = this.entries.length > 0 ? this.entries[0]!.time : Date.now();
     const events: unknown[] = this.entries.map((entry) => [
       (entry.time - firstTime) / 1000,
@@ -96,6 +98,8 @@ export class SessionRecorder {
    * @param filePath - Destination path (e.g. `'screenshot.ansi'`).
    */
   exportScreenshot(filePath: string): void {
+    const fs = nodeFs();
+    if (!fs) return;
     const text = this.entries.map((entry) => entry.data).join('');
     fs.writeFileSync(filePath, text);
   }

@@ -1,6 +1,6 @@
 {
   "name": "@quenetiq/platform-vt",
-  "version": "0.0.1",
+  "version": "0.1.2",
   "description": "Custom Angular Renderer2 for terminal UI applications",
   "peerDependencies": {
     "@angular/common": "^22.0.0",

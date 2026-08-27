@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, effect, makeEnvironmentProviders, type EnvironmentProviders, type WritableSignal } from '@angular/core';
-import * as fs from 'node:fs';
+import { nodeFs } from '../utils/node';
 import { TerminalService } from './terminal.service';
 
 /**
@@ -66,7 +66,8 @@ export class PersistenceService {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    if (typeof process === 'undefined') return;
+    const fs = nodeFs();
+    if (!fs) return;
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.state, null, 2));
     } catch {
@@ -76,7 +77,8 @@ export class PersistenceService {
 
   /** Read the state file once. */
   load(): void {
-    if (this.loaded || typeof process === 'undefined') return;
+    const fs = nodeFs();
+    if (this.loaded || !fs) return;
     this.loaded = true;
     try {
       if (fs.existsSync(this.filePath)) {
