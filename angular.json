@@ -157,7 +157,8 @@
                 "input": "projects/docs/src/assets/docs",
                 "output": "/docs"
               }
-            ]
+            ],
+            "baseHref": "/platform-vt/"
           },
           "configurations": {
             "production": {
