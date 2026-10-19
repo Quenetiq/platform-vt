@@ -20,6 +20,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { UndoStack } from '../../utils/undo-stack';
 import { createIdGenerator } from '../../cdk/dom';
+import {
+  countGraphemes,
+  indexAtCellColumn,
+  nextGraphemeIndex,
+  prevGraphemeIndex,
+} from '../../utils/graphemes';
 
 /**
  * A single-line text input.
@@ -125,9 +131,8 @@ export class InputComponent implements OnDestroy {
       id: this.id,
       element: this.elementRef.nativeElement as HTMLElement,
       onClick: (event, node) => {
-        const textLen = this.localValue().length;
         const col = event.x - node.x;
-        this.cursorPos.set(Math.min(Math.max(col, 0), textLen));
+        this.cursorPos.set(indexAtCellColumn(this.localValue(), Math.max(0, col)));
         this.renderService.scheduleRender();
       },
     });
@@ -150,7 +155,8 @@ export class InputComponent implements OnDestroy {
       const el = this.elementRef.nativeElement as HTMLElement;
       const generation = ++this.styleGeneration;
       const val = this.localValue();
-      const masked = this.mask() && !this.reveal() ? '\u2022'.repeat(val.length) : val;
+      const masked =
+        this.mask() && !this.reveal() ? '\u2022'.repeat(countGraphemes(val)) : val;
       const placeholder = this.placeholder();
       const grow = this.flexGrow();
       const pos = this.cursorPos();
@@ -240,34 +246,38 @@ export class InputComponent implements OnDestroy {
         this.canUndo.set(false);
         this.canRedo.set(false);
         return;
-      case 'backspace':
-        if (this.cursorPos() > 0) {
-          this.undoStack.snapshot(this.localValue());
-          const current = this.localValue();
-          this.localValue.set(
-            current.substring(0, this.cursorPos() - 1) + current.substring(this.cursorPos()),
-          );
-          this.cursorPos.set(this.cursorPos() - 1);
+      case 'backspace': {
+        const current = this.localValue();
+        const from = prevGraphemeIndex(current, this.cursorPos());
+        if (from < this.cursorPos()) {
+          this.undoStack.snapshot(current);
+          this.localValue.set(current.substring(0, from) + current.substring(this.cursorPos()));
+          this.cursorPos.set(from);
           this.dirty = true;
           this.valueChange.emit(this.localValue());
         }
         break;
-      case 'delete':
-        if (this.cursorPos() < this.localValue().length) {
-          this.undoStack.snapshot(this.localValue());
-          const current = this.localValue();
-          this.localValue.set(
-            current.substring(0, this.cursorPos()) + current.substring(this.cursorPos() + 1),
-          );
+      }
+      case 'delete': {
+        const current = this.localValue();
+        const to = nextGraphemeIndex(current, this.cursorPos());
+        if (to > this.cursorPos()) {
+          this.undoStack.snapshot(current);
+          this.localValue.set(current.substring(0, this.cursorPos()) + current.substring(to));
           this.dirty = true;
           this.valueChange.emit(this.localValue());
         }
         break;
+      }
       case 'left':
-        if (this.cursorPos() > 0) this.cursorPos.set(this.cursorPos() - 1);
+        if (this.cursorPos() > 0) {
+          this.cursorPos.set(prevGraphemeIndex(this.localValue(), this.cursorPos()));
+        }
         break;
       case 'right':
-        if (this.cursorPos() < this.localValue().length) this.cursorPos.set(this.cursorPos() + 1);
+        if (this.cursorPos() < this.localValue().length) {
+          this.cursorPos.set(nextGraphemeIndex(this.localValue(), this.cursorPos()));
+        }
         break;
       case 'home':
         this.cursorPos.set(0);
@@ -276,16 +286,19 @@ export class InputComponent implements OnDestroy {
         this.cursorPos.set(this.localValue().length);
         break;
       default:
-        if (event.name.length === 1 && event.name.charCodeAt(0) >= 32) {
-          if (this.localValue().length < this.maxLength()) {
-            this.undoStack.snapshot(this.localValue());
-            const current = this.localValue();
+        if (
+          countGraphemes(event.name) === 1 &&
+          (event.name.codePointAt(0) ?? 0) >= 32
+        ) {
+          const current = this.localValue();
+          if (countGraphemes(current) < this.maxLength()) {
+            this.undoStack.snapshot(current);
             this.localValue.set(
               current.substring(0, this.cursorPos()) +
                 event.name +
                 current.substring(this.cursorPos()),
             );
-            this.cursorPos.set(this.cursorPos() + 1);
+            this.cursorPos.set(this.cursorPos() + event.name.length);
             this.dirty = true;
             this.valueChange.emit(this.localValue());
           }
@@ -310,10 +323,10 @@ export class InputComponent implements OnDestroy {
 
     switch (event.name) {
       case 'h':
-        if (pos > 0) this.cursorPos.set(pos - 1);
+        if (pos > 0) this.cursorPos.set(prevGraphemeIndex(value, pos));
         break;
       case 'l':
-        if (pos < value.length) this.cursorPos.set(pos + 1);
+        if (pos < value.length) this.cursorPos.set(nextGraphemeIndex(value, pos));
         break;
       case '0':
       case 'home':
@@ -337,7 +350,7 @@ export class InputComponent implements OnDestroy {
         this.enterInsertMode(pos);
         break;
       case 'a':
-        this.enterInsertMode(Math.min(pos + 1, value.length));
+        this.enterInsertMode(nextGraphemeIndex(value, pos));
         break;
       case 'I':
         this.enterInsertMode(0);
@@ -386,7 +399,8 @@ export class InputComponent implements OnDestroy {
   private deleteAt(position: number): void {
     this.undoStack.snapshot(this.localValue());
     const value = this.localValue();
-    this.localValue.set(value.substring(0, position) + value.substring(position + 1));
+    const end = nextGraphemeIndex(value, position);
+    this.localValue.set(value.substring(0, position) + value.substring(end));
     this.cursorPos.set(position);
     this.dirty = true;
     this.valueChange.emit(this.localValue());

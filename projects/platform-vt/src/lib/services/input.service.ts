@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, inject, NgZone, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { stripSgrSequences } from './sgr-mouse';
+import { nextGraphemeIndex } from '../utils/graphemes';
 import { TerminalService } from './terminal.service';
 import {
   KITTY_POP,
@@ -95,8 +96,11 @@ export function splitInputKeys(data: string, kitty = false): string[] {
         i++;
       }
     } else {
-      keys.push(data[i]);
-      i++;
+      // Emit one key per grapheme cluster so emoji/combining marks arrive as
+      // a single event instead of broken UTF-16 halves.
+      const end = nextGraphemeIndex(data, i);
+      keys.push(data.substring(i, end));
+      i = end;
     }
   }
   return keys;

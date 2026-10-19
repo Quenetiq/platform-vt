@@ -19,6 +19,12 @@ import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
 import { UndoStack } from '../../utils/undo-stack';
 import { createIdGenerator } from '../../cdk/dom';
+import {
+  countGraphemes,
+  indexAtCellColumn,
+  nextGraphemeIndex,
+  prevGraphemeIndex,
+} from '../../utils/graphemes';
 
 /**
  * A multiline text input rendered as a fixed-height text area.
@@ -114,8 +120,11 @@ export class TextAreaComponent implements OnDestroy {
       onClick: (event, node) => {
         const row = Math.max(0, event.y - node.y);
         const lines = this.localValue().split('\n');
-        this.cursorRow.set(Math.min(row, Math.max(0, lines.length - 1)));
-        this.cursorCol.set(Math.max(0, event.x - node.x));
+        const lineRow = Math.min(row, Math.max(0, lines.length - 1));
+        this.cursorRow.set(lineRow);
+        this.cursorCol.set(
+          indexAtCellColumn(lines[lineRow] ?? '', Math.max(0, event.x - node.x)),
+        );
         this.renderService.scheduleRender();
       },
     });
@@ -290,12 +299,13 @@ export class TextAreaComponent implements OnDestroy {
         this.deleteForward();
         return;
       case 'left':
-        if (col > 0) set(row, col - 1);
+        if (col > 0) set(row, prevGraphemeIndex(lines[row] ?? '', col));
         else if (row > 0) set(row - 1, (lines[row - 1] ?? '').length);
         return;
       case 'right':
-        if (col < (lines[row]?.length ?? 0)) set(row, col + 1);
-        else if (row < lines.length - 1) set(row + 1, 0);
+        if (col < (lines[row]?.length ?? 0)) {
+          set(row, nextGraphemeIndex(lines[row] ?? '', col));
+        } else if (row < lines.length - 1) set(row + 1, 0);
         return;
       case 'up':
         set(row - 1, clampCol(row - 1));
@@ -310,7 +320,10 @@ export class TextAreaComponent implements OnDestroy {
         set(row, lines[row]?.length ?? 0);
         return;
       default:
-        if (event.name.length === 1 && event.name.charCodeAt(0) >= 32) {
+        if (
+          countGraphemes(event.name) === 1 &&
+          (event.name.codePointAt(0) ?? 0) >= 32
+        ) {
           this.insertAt(event.name);
         }
         return;
@@ -346,12 +359,13 @@ export class TextAreaComponent implements OnDestroy {
 
     switch (event.name) {
       case 'h':
-        if (col > 0) set(row, col - 1);
+        if (col > 0) set(row, prevGraphemeIndex(lines[row] ?? '', col));
         else if (row > 0) set(row - 1, (lines[row - 1] ?? '').length);
         break;
       case 'l':
-        if (col < (lines[row]?.length ?? 0)) set(row, col + 1);
-        else if (row < lines.length - 1) set(row + 1, 0);
+        if (col < (lines[row]?.length ?? 0)) {
+          set(row, nextGraphemeIndex(lines[row] ?? '', col));
+        } else if (row < lines.length - 1) set(row + 1, 0);
         break;
       case 'j':
       case 'return':
@@ -393,7 +407,7 @@ export class TextAreaComponent implements OnDestroy {
         enterInsert(col);
         break;
       case 'a':
-        enterInsert(col + 1);
+        enterInsert(nextGraphemeIndex(lines[row] ?? '', col));
         break;
       case 'I':
         enterInsert(0);
@@ -555,8 +569,8 @@ export class TextAreaComponent implements OnDestroy {
       lines[row] = line.substring(0, col) + char + line.substring(col);
     }
     this.localValue.set(lines.join('\n'));
-    this.cursorCol.set(this.cursorCol() + 1);
-    this.extraCursors.update((list) => list.map((c) => ({ ...c, col: c.col + 1 })));
+    this.cursorCol.set(this.cursorCol() + char.length);
+    this.extraCursors.update((list) => list.map((c) => ({ ...c, col: c.col + char.length })));
     this.valueChange.emit(this.localValue());
     this.renderService.scheduleRender();
   }
@@ -575,11 +589,13 @@ export class TextAreaComponent implements OnDestroy {
       const { row, col } = cursors[i]!;
       if (col === 0) continue;
       const line = lines[row] ?? '';
-      lines[row] = line.substring(0, col - 1) + line.substring(col);
+      const from = prevGraphemeIndex(line, col);
+      lines[row] = line.substring(0, from) + line.substring(col);
+      const shift = col - from;
       // Cursors on the same row to the left of this one shift left.
       for (let k = i - 1; k >= 0; k--) {
         const other = cursors[k]!;
-        if (other.row === row && other.col > col) other.col -= 1;
+        if (other.row === row && other.col > col) other.col -= shift;
       }
     }
 
@@ -604,10 +620,12 @@ export class TextAreaComponent implements OnDestroy {
       const { row, col } = cursors[i]!;
       const line = lines[row] ?? '';
       if (col >= line.length) continue;
-      lines[row] = line.substring(0, col) + line.substring(col + 1);
+      const to = nextGraphemeIndex(line, col);
+      lines[row] = line.substring(0, col) + line.substring(to);
+      const shift = to - col;
       for (let k = i - 1; k >= 0; k--) {
         const other = cursors[k]!;
-        if (other.row === row && other.col > col) other.col -= 1;
+        if (other.row === row && other.col > col) other.col -= shift;
       }
     }
 
@@ -627,7 +645,7 @@ export class TextAreaComponent implements OnDestroy {
     const col = this.cursorCol();
     const line = lines[row] ?? '';
     if (text === '\n') {
-      if (this.localValue().length >= this.maxLength()) return;
+      if (countGraphemes(this.localValue()) >= this.maxLength()) return;
       const next: string[] = [...lines];
       next[row] = line.substring(0, col);
       next.splice(row + 1, 0, line.substring(col));
@@ -635,11 +653,11 @@ export class TextAreaComponent implements OnDestroy {
       this.cursorRow.set(row + 1);
       this.cursorCol.set(0);
     } else {
-      if (this.localValue().length >= this.maxLength()) return;
+      if (countGraphemes(this.localValue()) >= this.maxLength()) return;
       const next: string[] = [...lines];
       next[row] = line.substring(0, col) + text + line.substring(col);
       this.localValue.set(next.join('\n'));
-      this.cursorCol.set(col + 1);
+      this.cursorCol.set(col + text.length);
     }
     this.valueChange.emit(this.localValue());
     this.renderService.scheduleRender();
@@ -656,9 +674,10 @@ export class TextAreaComponent implements OnDestroy {
     const col = this.cursorCol();
     if (col > 0) {
       const line = lines[row] ?? '';
-      lines[row] = line.substring(0, col - 1) + line.substring(col);
+      const from = prevGraphemeIndex(line, col);
+      lines[row] = line.substring(0, from) + line.substring(col);
       this.localValue.set(lines.join('\n'));
-      this.cursorCol.set(col - 1);
+      this.cursorCol.set(from);
     } else if (row > 0) {
       const prev = lines[row - 1] ?? '';
       const current = lines[row] ?? '';
@@ -683,7 +702,8 @@ export class TextAreaComponent implements OnDestroy {
     const col = this.cursorCol();
     const line = lines[row] ?? '';
     if (col < line.length) {
-      lines[row] = line.substring(0, col) + line.substring(col + 1);
+      const to = nextGraphemeIndex(line, col);
+      lines[row] = line.substring(0, col) + line.substring(to);
       this.localValue.set(lines.join('\n'));
     } else if (row < lines.length - 1) {
       lines[row] = line + (lines[row + 1] ?? '');

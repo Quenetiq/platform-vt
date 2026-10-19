@@ -41,6 +41,10 @@ Single-line text input with cursor and key handling.
 <vt-input placeholder="Username" (submitted)="login($event)"></vt-input>
 ```
 
+Editing is grapheme-aware: Backspace/Delete and cursor movement never split
+emoji, combining marks or other multi-code-unit graphemes. Clicking positions
+the cursor by display cell, so CJK/wide characters work correctly.
+
 ### Controlled Input
 
 ```html
@@ -48,7 +52,7 @@ Single-line text input with cursor and key handling.
   [value]="searchTerm()"
   placeholder="Search..."
   [maxLength]="50"
-  (valueChanged)="searchTerm.set($event)"
+  (valueChange)="searchTerm.set($event)"
   (submitted)="doSearch($event)">
 </vt-input>
 ```

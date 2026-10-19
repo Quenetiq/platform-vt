@@ -32,6 +32,9 @@ Multiline text input with optional vim mode and multi-cursor editing.
 | `valueChange` | `string` | Text changed |
 | `submitted` | `string` | Ctrl+Enter / submit |
 
+Editing is grapheme-aware: cursor movement and deletion never split emoji or
+combining sequences, and click positioning accounts for wide characters.
+
 ## Vim mode
 
 Normal mode supports `h/j/k/l`, `w/b`, `0/$`, `x`, `dd`, `i/a/I/A/o/O`;
