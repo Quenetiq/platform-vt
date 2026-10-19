@@ -1,3 +1,5 @@
+import { sanitizeHyperlink, sanitizeOscPayload, sanitizeText } from './sanitize';
+
 /**
  * ANSI escape sequence prefix.
  */
@@ -180,8 +182,12 @@ export const osc = {
    * @param text - The visible link text.
    * @param id - Optional link id for grouping links.
    */
-  hyperlink: (url: string, text: string, id?: string): string =>
-    `\x1b]8;${id ? `id=${id};` : ''}${url}\x1b\\${text}\x1b]8;;\x1b\\`,
+  hyperlink: (url: string, text: string, id?: string): string => {
+    const safeUrl = sanitizeHyperlink(url);
+    if (safeUrl.length === 0) return sanitizeText(text);
+    const safeId = id ? sanitizeOscPayload(id) : '';
+    return `\x1b]8;${safeId ? `id=${safeId};` : ''}${safeUrl}\x1b\\${sanitizeText(text)}\x1b]8;;\x1b\\`;
+  },
   /**
    * Copy text to the system clipboard (OSC 52).
    *
@@ -196,11 +202,11 @@ export const osc = {
    *
    * The title is shown in the terminal's tab/window chrome.
    */
-  title: (title: string): string => `\x1b]2;${title}\x07`,
+  title: (title: string): string => `\x1b]2;${sanitizeOscPayload(title)}\x07`,
   /**
    * Set both the icon name and the window title (OSC 0).
    */
-  iconAndTitle: (title: string): string => `\x1b]0;${title}\x07`,
+  iconAndTitle: (title: string): string => `\x1b]0;${sanitizeOscPayload(title)}\x07`,
   /**
    * Show a desktop notification (OSC 9).
    *
@@ -208,7 +214,7 @@ export const osc = {
    * unsupported terminals ignore the sequence.
    */
   notification: (body: string, title?: string): string =>
-    `\x1b]9;${title ? `${title}: ` : ''}${body}\x07`,
+    `\x1b]9;${title ? `${sanitizeOscPayload(title)}: ` : ''}${sanitizeOscPayload(body)}\x07`,
   /**
    * Report taskbar progress (OSC 9;4).
    *
@@ -235,10 +241,12 @@ export const osc = {
   /** Query the terminal's default background color (OSC 11). */
   queryBackground: (): string => '\x1b]11;?\x07',
   /** Set the terminal's default foreground color (OSC 10). */
-  setForeground: (color: string): string => `\x1b]10;${color}\x07`,
+  setForeground: (color: string): string => `\x1b]10;${sanitizeOscPayload(color)}\x07`,
   /** Set the terminal's default background color (OSC 11). */
-  setBackground: (color: string): string => `\x1b]11;${color}\x07`,
+  setBackground: (color: string): string => `\x1b]11;${sanitizeOscPayload(color)}\x07`,
   /** Report the current working directory (OSC 7). */
   workingDirectory: (path: string, host = 'localhost'): string =>
-    `\x1b]7;file://${host}${path.startsWith('/') ? path : `/${path}`}\x07`,
+    `\x1b]7;file://${sanitizeOscPayload(host)}${sanitizeOscPayload(
+      path.startsWith('/') ? path : `/${path}`,
+    )}\x07`,
 };

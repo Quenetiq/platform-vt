@@ -1,5 +1,6 @@
 import { cursor, erase, reset, osc } from './ansi';
 import { resolveColorAdaptive, type ColorMode } from './color-map';
+import { sanitizeHyperlink, sanitizeText } from './sanitize';
 import { isWideChar } from './unicode-width';
 
 /**
@@ -201,7 +202,11 @@ export class ScreenBuffer {
           if (c.char === WIDE_CONTINUATION) continue;
           text += c.char;
         }
-        out.push(cell.hyperlink.length > 0 ? osc.hyperlink(cell.hyperlink, text) : text);
+        // Untrusted content may contain ESC/BEL/bidi controls; strip them at
+        // the last possible moment so no component can inject sequences.
+        const safeText = sanitizeText(text);
+        const safeUrl = sanitizeHyperlink(cell.hyperlink);
+        out.push(safeUrl.length > 0 ? osc.hyperlink(safeUrl, safeText) : safeText);
 
         x = end;
       }

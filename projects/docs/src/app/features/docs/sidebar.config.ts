@@ -17,6 +17,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { title: 'Theme & Terminal', slug: 'theme', group: 'Guides' },
       { title: 'Responsive Breakpoints', slug: 'breakpoints', group: 'Guides' },
       { title: 'Devtools', slug: 'devtools', group: 'Guides' },
+      { title: 'Security', slug: 'security', group: 'Guides' },
       { title: 'Testing', slug: 'testing', group: 'Guides' },
       { title: 'Contributing', slug: 'contributing', group: 'Guides' },
     ],

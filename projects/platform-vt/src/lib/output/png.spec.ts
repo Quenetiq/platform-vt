@@ -84,6 +84,29 @@ describe('decodePng', () => {
     expect(Array.from(decoded!.rgb)).toEqual([10, 20, 30]);
   });
 
+  it('rejects PNGs that exceed the decode pixel budget', () => {
+    const header = new Uint8Array(13);
+    writeU32(header, 0, 5000);
+    writeU32(header, 4, 5000);
+    header[8] = 8;
+    header[9] = 2;
+    header[12] = 0;
+    const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const chunks = [chunk('IHDR', header), chunk('IDAT', new Uint8Array(0))];
+    const png = new Uint8Array(
+      signature.length + chunks.reduce((sum, part) => sum + part.length, 0),
+    );
+    png.set(signature);
+    let offset = signature.length;
+    for (const part of chunks) {
+      png.set(part, offset);
+      offset += part.length;
+    }
+
+    expect(decodePng(png)).toBeNull();
+    expect(decodePng(png, { maxPixels: 30_000_000 })).toBeNull();
+  });
+
   it('rejects non-PNG input', () => {
     expect(decodePng(new Uint8Array([1, 2, 3]))).toBeNull();
     expect(decodePng(new TextEncoder().encode('not a png at all!'))).toBeNull();

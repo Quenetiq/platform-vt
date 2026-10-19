@@ -1,4 +1,5 @@
 import {
+  DestroyRef,
   Injectable,
   inject,
   makeEnvironmentProviders,
@@ -29,24 +30,44 @@ import { TerminalService } from './terminal.service';
 @Injectable()
 export class SessionRecorder {
   private readonly terminal = inject(TerminalService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Whether recording is active. */
   readonly recording = signal(false);
 
+  /** Whether recording was stopped because {@link maxBytes} was reached. */
+  readonly truncated = signal(false);
+
+  /** Maximum amount of captured output (5 MB by default). */
+  maxBytes = 5 * 1024 * 1024;
+
   private entries: { time: number; data: string }[] = [];
+  private recordedBytes = 0;
   private originalWrite: typeof process.stdout.write | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.stop());
+  }
 
   /** Start recording (idempotent). */
   start(): void {
     if (this.recording()) return;
     if (typeof process === 'undefined' || !process.stdout) return;
     this.entries = [];
+    this.recordedBytes = 0;
+    this.truncated.set(false);
     this.originalWrite = process.stdout.write.bind(process.stdout);
     const entries = this.entries;
     const recorder = this;
     process.stdout.write = ((chunk: string | Uint8Array, ..._args: unknown[]) => {
       try {
-        entries.push({ time: Date.now(), data: String(chunk) });
+        const data = String(chunk);
+        if (recorder.recordedBytes + data.length <= recorder.maxBytes) {
+          entries.push({ time: Date.now(), data });
+          recorder.recordedBytes += data.length;
+        } else {
+          recorder.truncated.set(true);
+        }
       } catch {
         // Ignore recording errors; output still flows.
       }
@@ -95,7 +116,8 @@ export class SessionRecorder {
       env: { TERM: process.env['TERM'] ?? 'xterm-256color' },
       events,
     };
-    fs.writeFileSync(filePath, JSON.stringify(payload));
+    // Recordings may contain sensitive terminal output; keep them private.
+    fs.writeFileSync(filePath, JSON.stringify(payload), { mode: 0o600 });
   }
 
   /**
@@ -107,7 +129,7 @@ export class SessionRecorder {
     const fs = nodeFs();
     if (!fs) return;
     const text = this.entries.map((entry) => entry.data).join('');
-    fs.writeFileSync(filePath, text);
+    fs.writeFileSync(filePath, text, { mode: 0o600 });
   }
 }
 

@@ -18,6 +18,21 @@ export interface DecodedPng {
   rgb: Uint8Array;
 }
 
+/** Options for {@link decodePng}. */
+export interface PngDecodeOptions {
+  /**
+   * Maximum number of pixels (`width * height`) to decode. Prevents
+   * decompression bombs from untrusted PNG files.
+   */
+  maxPixels?: number;
+}
+
+/** Default pixel budget for PNG decoding (24 MB of RGB data). */
+export const DEFAULT_MAX_PNG_PIXELS = 8_000_000;
+
+/** Hard cap for a single image dimension (avoids overflow/abuse). */
+const MAX_DIMENSION = 10_000;
+
 interface PngChunk {
   type: number;
   data: Uint8Array;
@@ -46,9 +61,13 @@ function nodeZlib(): { inflateSync(data: Uint8Array): Buffer } | null {
  * Decode a PNG file into RGB bytes.
  *
  * @param buffer - The raw PNG file bytes.
+ * @param options - Decoding limits (pixel budget).
  * @returns The decoded image, or null when the input is not a supported PNG.
  */
-export function decodePng(buffer: Uint8Array): DecodedPng | null {
+export function decodePng(
+  buffer: Uint8Array,
+  options: PngDecodeOptions = {},
+): DecodedPng | null {
   if (buffer.length < 8) return null;
   for (let i = 0; i < 8; i++) {
     if (buffer[i] !== PNG_SIGNATURE[i]) return null;
@@ -67,6 +86,13 @@ export function decodePng(buffer: Uint8Array): DecodedPng | null {
   const interlace = header.data[12]!;
 
   if (width <= 0 || height <= 0 || bitDepth !== 8 || interlace !== 0) return null;
+
+  // Reject dimensions that are absurd or exceed the decode budget before
+  // allocating anything. Untrusted PNGs can otherwise cause huge allocations
+  // or decompression bombs.
+  if (width > MAX_DIMENSION || height > MAX_DIMENSION) return null;
+  const maxPixels = options.maxPixels ?? DEFAULT_MAX_PNG_PIXELS;
+  if (width * height > maxPixels) return null;
 
   const channels =
     colorType === 0 ? 1 : colorType === 2 ? 3 : colorType === 4 ? 2 : colorType === 6 ? 4 : 0;

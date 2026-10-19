@@ -55,6 +55,34 @@ describe('TerminalOutput', () => {
     expect(outputText).toContain('\x1b[?25h');
   });
 
+  it('strips escape sequences and bidi controls from untrusted text', () => {
+    const root = createVTNode('root');
+    const text = createVTNode('text');
+    text.textContent = 'safe\x1b]52;c;ZXZpbA==\x07\u202Eevil';
+    appendVTChild(root, text);
+    output.render(layoutNode(root, 0, 0, 40, 1, [layoutNode(text, 0, 0, 40, 1)]), 40, 1);
+    output.flush();
+
+    const frame = lastWrite();
+    expect(frame).not.toContain('\x1b]52');
+    expect(frame).not.toContain('\x07');
+    expect(frame).not.toContain('\u202E');
+    expect(frame).toContain('safe]52;c;ZXZpbA==evil');
+  });
+
+  it('rejects dangerous hyperlink targets on painted cells', () => {
+    const root = createVTNode('root');
+    const text = createVTNode('text');
+    text.textContent = 'click';
+    text.styles.set('hyperlink', 'javascript:alert(1)');
+    appendVTChild(root, text);
+    output.render(layoutNode(root, 0, 0, 40, 1, [layoutNode(text, 0, 0, 40, 1)]), 40, 1);
+    output.flush();
+
+    expect(lastWrite()).not.toContain('\x1b]8');
+    expect(lastWrite()).toContain('click');
+  });
+
   it('paints over the previous frame when clear is false (no screen erase)', () => {
     const root = createVTNode('root');
     const text = createVTNode('text');

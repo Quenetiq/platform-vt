@@ -10,8 +10,9 @@
 export interface NodeFs {
   readFileSync(path: string): Buffer;
   readFileSync(path: string, encoding: string): string;
-  writeFileSync(path: string, data: string): void;
+  writeFileSync(path: string, data: string, options?: { mode?: number }): void;
   existsSync(path: string): boolean;
+  statSync(path: string): { size: number };
 }
 
 /** The `node:fs` module, or null when not running under Node. */
@@ -27,11 +28,21 @@ export function nodeFs(): NodeFs | null {
   }
 }
 
-/** Read a file as a Buffer, or null when unavailable (non-Node or I/O error). */
-export function readFileBuffer(path: string): Buffer | null {
+/**
+ * Read a file as a Buffer, or null when unavailable (non-Node or I/O error).
+ *
+ * @param path - File to read.
+ * @param maxBytes - Optional size limit checked before reading, to avoid
+ * allocating huge buffers for untrusted paths.
+ */
+export function readFileBuffer(path: string, maxBytes?: number): Buffer | null {
   const fs = nodeFs();
   if (!fs) return null;
   try {
+    if (maxBytes !== undefined) {
+      const stat = fs.statSync(path);
+      if (!Number.isFinite(stat.size) || stat.size > maxBytes) return null;
+    }
     return fs.readFileSync(path);
   } catch {
     return null;

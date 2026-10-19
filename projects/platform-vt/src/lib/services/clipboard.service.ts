@@ -26,6 +26,10 @@ const ST = '\x1b\\';
 /** Chunk size for OSC 5522 payloads (before base64), per the kitty spec. */
 const KITTY_CHUNK_SIZE = 4096;
 
+/** Maximum clipboard payload accepted from the terminal (10 MB decoded). */
+const MAX_CLIPBOARD_BYTES = 10 * 1024 * 1024;
+const MAX_CLIPBOARD_BASE64 = Math.ceil((MAX_CLIPBOARD_BYTES * 4) / 3);
+
 /**
  * Reads and writes the system clipboard via the OSC 52 protocol (with
  * kitty's OSC 5522 extension as an automatic upgrade on kitty terminals,
@@ -70,6 +74,8 @@ export class ClipboardService {
       this.consumeKittyReadReply(data);
       const match = OSC52_RE.exec(data);
       if (!match) return;
+      // Reject oversized replies instead of allocating/decoding them.
+      if ((match[1]?.length ?? 0) > MAX_CLIPBOARD_BASE64) return;
       let text = '';
       try {
         text = Buffer.from(match[1] ?? '', 'base64').toString('utf8');
@@ -161,6 +167,9 @@ export class ClipboardService {
         }
       } else if (status.startsWith('DATA:')) {
         this.kittyReadBuffer += match[3] ?? '';
+        if (this.kittyReadBuffer.length > MAX_CLIPBOARD_BASE64) {
+          this.kittyReadBuffer = '';
+        }
       }
     }
   }

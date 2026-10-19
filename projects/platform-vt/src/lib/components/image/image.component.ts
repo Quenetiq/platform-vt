@@ -2,7 +2,7 @@ import { Component, inject, input, effect, ElementRef, signal } from '@angular/c
 import { cursor } from '../../output/ansi';
 import { readFileBuffer } from '../../utils/node';
 import { parsePpmP6, sixelWrite } from '../../output/sixel';
-import { decodePng } from '../../output/png';
+import { DEFAULT_MAX_PNG_PIXELS, decodePng } from '../../output/png';
 import { RenderService } from '../../services/render.service';
 import { InputService } from '../../services/input.service';
 import { TerminalService } from '../../services/terminal.service';
@@ -90,6 +90,10 @@ export class ImageComponent {
   readonly heightPx = input<number | null>(null);
   /** Transfer protocol. `'auto'` (default) picks from terminal capabilities. */
   readonly protocol = input<ImageProtocol>('auto');
+  /** Maximum image file size in bytes (default 10 MB). */
+  readonly maxBytes = input<number>(10 * 1024 * 1024);
+  /** Maximum decoded pixel count for sixel PNG decoding. */
+  readonly maxPixels = input<number>(DEFAULT_MAX_PNG_PIXELS);
 
   /** Whether the image was emitted to the terminal. */
   readonly emitted = signal(false);
@@ -123,7 +127,7 @@ export class ImageComponent {
   }
 
   private emitImage(src: string, el: HTMLElement): void {
-    const buffer = readFileBuffer(src);
+    const buffer = readFileBuffer(src, this.maxBytes());
     if (!buffer) throw new Error(`Cannot read image: ${src}`);
     const widthPx = this.widthPx() ?? this.width() * 8;
     const heightPx = this.heightPx() ?? this.height() * 16;
@@ -193,7 +197,7 @@ export class ImageComponent {
    * otherwise the file must be a PPM P6 raster.
    */
   private emitSixel(buffer: Buffer, el: HTMLElement): void {
-    const png = decodePng(buffer);
+    const png = decodePng(buffer, { maxPixels: this.maxPixels() });
     let width: number;
     let height: number;
     let rgb: Uint8Array;

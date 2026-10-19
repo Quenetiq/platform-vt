@@ -13,6 +13,7 @@ A custom Angular `Renderer2` library that renders Angular components to the **te
 - **Responsive** — terminal-size breakpoints and the `vt-grid` container.
 - **Theming** — a lightweight `.vt` stylesheet DSL with `StyleRegistry` and CSS-like selectors.
 - **Tooling** — devtools overlay (`Ctrl+Shift+D`), session recorder, snapshots, benchmarks and a `renderComponent` test harness.
+- **Security** — control-character and bidi sanitization at the output boundary, OSC payload escaping, safe hyperlink schemes, image/clipboard size limits, prototype-pollution-safe persistence.
 
 ## Installation
 
@@ -244,4 +245,5 @@ See the `docs/` directory:
 - [Services](docs/services.md)
 - [Components](docs/components)
 - [Testing](docs/testing.md)
+- [Security](docs/security.md)
 - [Contributing](docs/contributing.md)

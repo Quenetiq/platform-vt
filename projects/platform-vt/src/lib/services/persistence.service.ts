@@ -1,14 +1,19 @@
 import {
   Injectable,
+  Injector,
   inject,
   signal,
   effect,
   makeEnvironmentProviders,
+  runInInjectionContext,
   type EnvironmentProviders,
   type WritableSignal,
 } from '@angular/core';
 import { nodeFs } from '../utils/node';
 import { TerminalService } from './terminal.service';
+
+/** Keys that could alter an object's prototype when assigned. */
+const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
 /**
  * Persists application state to a JSON file.
@@ -26,6 +31,7 @@ import { TerminalService } from './terminal.service';
 @Injectable()
 export class PersistenceService {
   private readonly terminal = inject(TerminalService);
+  private readonly injector = inject(Injector);
 
   private filePath = '.platform-vt-state.json';
   private state: Record<string, unknown> = {};
@@ -34,6 +40,9 @@ export class PersistenceService {
 
   /** Configure the state file path. */
   configure(filePath: string): void {
+    if (typeof filePath !== 'string' || filePath.trim().length === 0) {
+      throw new Error('PersistenceService.configure: file path must be a non-empty string');
+    }
     this.filePath = filePath;
     this.loaded = false;
     this.state = {};
@@ -52,9 +61,13 @@ export class PersistenceService {
     const state = signal(stored !== undefined ? stored : initial);
 
     const service = this;
-    effect(() => {
-      const value = state();
-      service.save(key, value);
+    // `signal()` may be called after construction (e.g. from a service
+    // method); create the effect in the service's injection context.
+    runInInjectionContext(this.injector, () => {
+      effect(() => {
+        const value = state();
+        service.save(key, value);
+      });
     });
 
     return state;
@@ -62,6 +75,7 @@ export class PersistenceService {
 
   /** Persist a single value immediately (debounced). */
   save<T>(key: string, value: T): void {
+    if (UNSAFE_KEYS.has(key)) return;
     this.load();
     this.state[key] = value;
     if (this.saveTimer) clearTimeout(this.saveTimer);
@@ -77,7 +91,8 @@ export class PersistenceService {
     const fs = nodeFs();
     if (!fs) return;
     try {
-      fs.writeFileSync(this.filePath, JSON.stringify(this.state, null, 2));
+      // State may contain user data; keep the file private to the user.
+      fs.writeFileSync(this.filePath, JSON.stringify(this.state, null, 2), { mode: 0o600 });
     } catch {
       // State persistence is best-effort (read-only dirs, etc.).
     }
@@ -95,7 +110,12 @@ export class PersistenceService {
           unknown
         >;
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          this.state = parsed;
+          // Never copy prototype-polluting keys from an untrusted state file.
+          const safe: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(parsed)) {
+            if (!UNSAFE_KEYS.has(key)) safe[key] = value;
+          }
+          this.state = safe;
         }
       }
     } catch {

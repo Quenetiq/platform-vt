@@ -32,6 +32,13 @@ export type { ColorMode } from './lib/output/color-map';
 export { parseAnsi } from './lib/output/ansi-parse';
 export type { AnsiSegment } from './lib/output/ansi-parse';
 export {
+  sanitizeText,
+  sanitizeOscPayload,
+  sanitizeHyperlink,
+  hasControlChars,
+  MAX_OSC_PAYLOAD,
+} from './lib/output/sanitize';
+export {
   stringWidth,
   cellWidth,
   truncateToWidth,
