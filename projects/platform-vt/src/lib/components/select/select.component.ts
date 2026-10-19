@@ -18,7 +18,7 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
-import { createIdGenerator } from '../../cdk/dom';
+import { LINE_ATTRS, createIdGenerator, setCellText, syncChildren } from '../../cdk/dom';
 
 /** One option in the filtered list. */
 interface FilteredOption {
@@ -72,6 +72,15 @@ export class SelectComponent {
   /** Whether typing filters the option list. */
   readonly filterable = input<boolean>(false);
 
+  /**
+   * Expand an inline listbox when focused/opened instead of showing only the
+   * current value. Enter/Space opens, arrows move, Enter selects, Esc closes.
+   */
+  readonly dropdown = input<boolean>(false);
+
+  /** Maximum option rows rendered by the dropdown (default 8). */
+  readonly maxVisibleOptions = input<number>(8);
+
   /** Text shown when nothing is selected (single select always has a value). */
   readonly placeholder = input<string>('Select...');
 
@@ -87,6 +96,9 @@ export class SelectComponent {
   /** Index (into the filtered list) highlighted by the keyboard. */
   readonly activeIndex = signal(0);
 
+  /** Whether the inline dropdown is expanded. */
+  readonly openList = signal(false);
+
   /** Options matching the current filter. */
   readonly filteredOptions = computed<FilteredOption[]>(() => {
     const needle = this.filter().trim().toLowerCase();
@@ -94,6 +106,23 @@ export class SelectComponent {
       .map((label, index) => ({ label, index }))
       .filter((option) => needle.length === 0 || option.label.toLowerCase().includes(needle));
   });
+
+  /** First visible option index in the dropdown window. */
+  readonly visibleStart = computed(() => {
+    const count = this.filteredOptions().length;
+    const limit = Math.max(1, this.maxVisibleOptions());
+    if (count <= limit) return 0;
+    const active = Math.max(0, Math.min(count - 1, this.activeIndex()));
+    return Math.max(0, Math.min(count - limit, active - Math.floor(limit / 2)));
+  });
+
+  /** Options currently rendered by the dropdown. */
+  readonly visibleOptions = computed(() =>
+    this.filteredOptions().slice(
+      this.visibleStart(),
+      this.visibleStart() + Math.max(1, this.maxVisibleOptions()),
+    ),
+  );
 
   /** Labels of the selected options in multiple mode, in option order. */
   readonly selectedLabels = computed<string[]>(() => {
@@ -130,6 +159,8 @@ export class SelectComponent {
         node.textContent = text;
         node.styles.set('color', color);
         node.dirty = true;
+      } else if (this.dropdown()) {
+        this.renderDropdown(node, opts, filterText, color);
       } else {
         node.setAttribute('min-height', '1');
         node.setAttribute('content', text);
@@ -157,6 +188,7 @@ export class SelectComponent {
       },
       onBlur: () => {
         this.clearTypeAhead();
+        if (this.openList()) this.closeDropdown();
         this.renderService.scheduleRender();
       },
     });
@@ -169,8 +201,18 @@ export class SelectComponent {
     this.clickService.register({
       id: this.id,
       element: this.elementRef.nativeElement as HTMLElement,
-      onClick: () => {
+      onClick: (event, node) => {
         this.focusService.focus(this.id);
+        if (!this.dropdown()) return;
+        const row = event.y - node.y;
+        if (row === 0) {
+          if (this.openList()) this.closeDropdown();
+          else this.openDropdown();
+          return;
+        }
+        if (!this.openList()) return;
+        const option = this.visibleOptions()[row - 1];
+        if (option) this.choose(option);
       },
     });
 
@@ -207,6 +249,149 @@ export class SelectComponent {
     this.focusService.focus(this.id);
   }
 
+  /** Render the inline dropdown (value row + visible option rows). */
+  private renderDropdown(
+    el: HTMLElement,
+    opts: string[],
+    filterText: string,
+    color: string,
+  ): void {
+    const open = this.openList();
+    const multiple = this.multiple();
+    const visible = this.visibleOptions();
+    const start = this.visibleStart();
+    const active = this.activeIndex();
+
+    el.setAttribute('display', 'flex');
+    el.setAttribute('flex-direction', 'column');
+    el.setAttribute('flex-shrink', '0');
+    el.setAttribute('min-height', '1');
+
+    const rows = syncChildren(
+      el,
+      open ? visible.length + 1 : 1,
+      'vt-select-line',
+      LINE_ATTRS,
+    );
+
+    const marker = open ? '\u25B2' : '\u25BC';
+    this.renderRow(rows[0]!, `${marker} ${this.currentDisplay(opts, multiple, filterText)}`, color, false);
+
+    if (!open) return;
+    for (let i = 0; i < visible.length; i++) {
+      const option = visible[i]!;
+      const checked = multiple ? (this.selected().includes(option.index) ? '[x] ' : '[ ] ') : '';
+      this.renderRow(
+        rows[i + 1]!,
+        ` ${checked}${option.label}`,
+        color,
+        start + i === active,
+      );
+    }
+  }
+
+  private renderRow(row: HTMLElement, text: string, color: string, active: boolean): void {
+    setCellText(row, text);
+    if (active) {
+      row.setAttribute('inverse', 'true');
+      row.setAttribute('color', 'bright-white');
+    } else {
+      row.removeAttribute('inverse');
+      row.setAttribute('color', color);
+    }
+  }
+
+  /** Open the inline listbox. */
+  openDropdown(filterText = ''): void {
+    this.openList.set(true);
+    this.filter.set(filterText);
+    const filtered = this.filteredOptions();
+    const target = this.multiple() ? (this.selected()[0] ?? 0) : this.value();
+    const position = filtered.findIndex((option) => option.index === target);
+    this.activeIndex.set(position >= 0 ? position : 0);
+    this.renderService.scheduleRender();
+  }
+
+  /** Close the inline listbox and clear the filter. */
+  closeDropdown(): void {
+    this.openList.set(false);
+    this.filter.set('');
+    this.activeIndex.set(0);
+    this.renderService.scheduleRender();
+  }
+
+  private choose(option: FilteredOption): void {
+    if (this.multiple()) {
+      this.toggle(option.index);
+      this.activeIndex.set(Math.max(0, this.filteredOptions().findIndex((o) => o.index === option.index)));
+      return;
+    }
+    this.value.set(option.index);
+    this.valueChange.emit(option.index);
+    this.closeDropdown();
+  }
+
+  private handleDropdownKey(event: { name: string; ctrl?: boolean; meta?: boolean }): void {
+    const filtered = this.filteredOptions();
+    const printable = !event.ctrl && !event.meta && event.name.length === 1;
+
+    if (!this.openList()) {
+      if (event.name === 'down' || event.name === 'up' || event.name === 'return' || event.name === ' ') {
+        this.openDropdown();
+        return;
+      }
+      if (printable) {
+        if (this.filterable()) this.openDropdown(event.name);
+        else this.handleTypeAhead(event.name);
+      }
+      return;
+    }
+
+    const active = Math.max(0, Math.min(Math.max(0, filtered.length - 1), this.activeIndex()));
+    switch (event.name) {
+      case 'escape':
+        this.closeDropdown();
+        return;
+      case 'up':
+        this.activeIndex.set(Math.max(0, active - 1));
+        return;
+      case 'down':
+        this.activeIndex.set(Math.min(Math.max(0, filtered.length - 1), active + 1));
+        return;
+      case 'home':
+        this.activeIndex.set(0);
+        return;
+      case 'end':
+        this.activeIndex.set(Math.max(0, filtered.length - 1));
+        return;
+      case 'return':
+      case ' ': {
+        const option = filtered[active];
+        if (option) this.choose(option);
+        return;
+      }
+      case 'backspace':
+        if (this.filterable()) {
+          this.filter.update((text) => text.slice(0, -1));
+          this.activeIndex.set(0);
+        }
+        return;
+    }
+
+    if (printable) {
+      if (this.filterable()) {
+        this.filter.update((text) => text + event.name);
+        this.activeIndex.set(0);
+      } else {
+        const position = filtered.findIndex((option) =>
+          option.label.toLowerCase().startsWith(event.name.toLowerCase()),
+        );
+        if (position >= 0) this.activeIndex.set(position);
+      }
+      this.renderService.scheduleRender();
+    }
+  }
+
   private currentDisplay(opts: string[], multiple: boolean, filterText: string): string {
     if (this.filterable() && this.isFocused() && filterText.length > 0) {
       return `${filterText}\u258F`;
@@ -220,6 +405,10 @@ export class SelectComponent {
   }
 
   private handleKey(event: { name: string; ctrl?: boolean; meta?: boolean }): void {
+    if (this.dropdown()) {
+      this.handleDropdownKey(event);
+      return;
+    }
     const filtered = this.filteredOptions();
     const filtering = this.filter().length > 0;
     const active = filtering

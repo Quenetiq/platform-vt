@@ -17,6 +17,7 @@ describe('parseSgrMouse', () => {
       type: 'down',
       button: 'left',
       scrollDirection: undefined,
+      scrollAxis: undefined,
       shift: false,
       meta: false,
       ctrl: false,
@@ -52,6 +53,20 @@ describe('parseSgrMouse', () => {
     const down = parseSgrMouse('\x1b[<65;1;1M');
     expect(down?.type).toBe('scroll');
     expect(down?.scrollDirection).toBe('down');
+
+    expect(up?.scrollAxis).toBe('vertical');
+    expect(down?.scrollAxis).toBe('vertical');
+  });
+
+  it('parses horizontal wheel events', () => {
+    const left = parseSgrMouse('\x1b[<66;1;1M');
+    expect(left?.type).toBe('scroll');
+    expect(left?.scrollAxis).toBe('horizontal');
+    expect(left?.scrollDirection).toBe('up');
+
+    const right = parseSgrMouse('\x1b[<67;1;1M');
+    expect(right?.scrollAxis).toBe('horizontal');
+    expect(right?.scrollDirection).toBe('down');
   });
 
   it('parses modifier keys', () => {

@@ -72,7 +72,8 @@ npm start
 | Input | `<vt-input>` | Text input with completion, reveal and undo |
 | Textarea | `<vt-textarea>` | Multiline input with vim mode and multi-cursor |
 | Button | `<vt-button>` | Clickable action |
-| Select | `<vt-select>` | Single/multi select with filtering and type-ahead |
+| Select | `<vt-select>` | Single/multi select with inline dropdown, filtering and type-ahead |
+| Date picker | `<vt-datepicker>` | Month calendar with min/max range |
 | Checkbox / Toggle / Radio | `<vt-checkbox>` / `<vt-toggle>` / `<vt-radio>` | Boolean controls |
 | Slider | `<vt-slider>` | Numeric setting |
 | List | `<vt-list>` | Item list |
@@ -87,7 +88,7 @@ npm start
 | Breadcrumb | `<vt-breadcrumb>` | Clickable navigation trail |
 | Image | `<vt-image>` | Sixel, kitty and iTerm2 inline images |
 | Progress / Spinner / Skeleton | `<vt-progress>` / `<vt-spinner>` / `<vt-skeleton>` | Async feedback |
-| ScrollView | `<vt-scroll>` | Scrollable viewport (chat-style, pins to bottom) |
+| ScrollView | `<vt-scroll>` | Scrollable viewport (vertical + horizontal, chat-style pinning) |
 | Badge / Status bar / Paginator | `<vt-badge>` / `<vt-statusbar>` / `<vt-paginator>` | App chrome |
 | Separator / Spacer / Newline / Caret | `<vt-separator>` / `<vt-spacer>` / `<vt-newline>` / `<vt-caret>` | Layout primitives |
 | Clickable / Draggable / Drop zone | `vtClickable` / `vtDraggable` / `vtDropZone` | Interaction directives |

@@ -14,11 +14,16 @@ import { RenderService } from '../services/render.service';
 import { InputComponent } from '../components/input/input.component';
 import { TextAreaComponent } from '../components/textarea/textarea.component';
 import { SelectComponent } from '../components/select/select.component';
+import { DatePickerComponent } from '../components/datepicker/datepicker.component';
 import type { AsyncValidatorFn, ValidatorFn } from './validators';
 import { STYLE_READER, type VTStyleReader } from '../styles/style-registry';
 
 /** Any of the control components a form field can wrap. */
-export type FormControl = InputComponent | TextAreaComponent | SelectComponent;
+export type FormControl =
+  | InputComponent
+  | TextAreaComponent
+  | SelectComponent
+  | DatePickerComponent;
 
 /**
  * Wraps a single form control (`vt-input`, `vt-textarea` or `vt-select`) with
@@ -82,12 +87,14 @@ export class FormFieldComponent {
   private readonly inputs = contentChildren(InputComponent, { descendants: true });
   private readonly textareas = contentChildren(TextAreaComponent, { descendants: true });
   private readonly selects = contentChildren(SelectComponent, { descendants: true });
+  private readonly datepickers = contentChildren(DatePickerComponent, { descendants: true });
 
   /** The nested control, in DOM order. */
   private readonly controls = computed<FormControl[]>(() => [
     ...this.inputs(),
     ...this.textareas(),
     ...this.selects(),
+    ...this.datepickers(),
   ]);
 
   constructor() {
@@ -148,6 +155,8 @@ export class FormFieldComponent {
     } else if (control instanceof SelectComponent) {
       control.valueChange.subscribe((value) => onValue(value));
       control.selectionChange.subscribe(() => onValue(control.selectedLabels().join(', ')));
+    } else if (control instanceof DatePickerComponent) {
+      control.valueChange.subscribe((value) => onValue(value));
     }
   }
 

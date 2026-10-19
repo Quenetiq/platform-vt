@@ -33,6 +33,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { title: 'Input', slug: 'components/input', group: 'Components' },
       { title: 'Button', slug: 'components/button', group: 'Components' },
       { title: 'Select', slug: 'components/select', group: 'Components' },
+      { title: 'Date Picker', slug: 'components/datepicker', group: 'Components' },
       { title: 'Checkbox', slug: 'components/checkbox', group: 'Components' },
       { title: 'List', slug: 'components/list', group: 'Components' },
       { title: 'Table', slug: 'components/table', group: 'Components' },

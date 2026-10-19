@@ -19,6 +19,7 @@ import { provideClickService } from '../../services/click.service';
       [options]="options"
       [multiple]="multiple"
       [filterable]="filterable"
+      [dropdown]="dropdown"
       (valueChange)="value.set($event)"
       (selectionChange)="selection.set($event)"
     ></vt-select>
@@ -28,6 +29,7 @@ class SelectHostComponent {
   readonly options = ['Red', 'Green', 'Blue'];
   multiple = false;
   filterable = false;
+  dropdown = false;
   readonly value = signal(0);
   readonly selection = signal<number[]>([]);
 }
@@ -133,6 +135,68 @@ describe('SelectComponent', () => {
 
     input.simulateKey(key('b'));
     expect(fixture.componentInstance.value()).toBe(2);
+  });
+
+  it('expands an inline dropdown and selects with arrows', () => {
+    const fixture = TestBed.createComponent(SelectHostComponent);
+    fixture.componentInstance.dropdown = true;
+    fixture.detectChanges();
+    focusSelect(fixture);
+
+    input.simulateKey(key('down'));
+    fixture.detectChanges();
+    const host = (fixture.nativeElement as HTMLElement).querySelector('vt-select')!;
+    expect(host.querySelectorAll('vt-select-line')).toHaveLength(4);
+
+    const select = fixture.debugElement.query(By.directive(SelectComponent))
+      .componentInstance as SelectComponent;
+    expect(select.openList()).toBe(true);
+
+    input.simulateKey(key('down'));
+    input.simulateKey(key('return'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.value()).toBe(1);
+    expect(select.openList()).toBe(false);
+  });
+
+  it('filters inside the dropdown and closes on escape', () => {
+    const fixture = TestBed.createComponent(SelectHostComponent);
+    fixture.componentInstance.dropdown = true;
+    fixture.componentInstance.filterable = true;
+    fixture.detectChanges();
+    focusSelect(fixture);
+
+    input.simulateKey(key('g'));
+    fixture.detectChanges();
+    const select = fixture.debugElement.query(By.directive(SelectComponent))
+      .componentInstance as SelectComponent;
+    expect(select.openList()).toBe(true);
+    expect(select.filter()).toBe('g');
+    const host = (fixture.nativeElement as HTMLElement).querySelector('vt-select')!;
+    expect(host.querySelectorAll('vt-select-line')).toHaveLength(2);
+
+    input.simulateKey(key('escape'));
+    fixture.detectChanges();
+    expect(select.openList()).toBe(false);
+    expect(select.filter()).toBe('');
+  });
+
+  it('keeps the dropdown open while toggling multiple options', () => {
+    const fixture = TestBed.createComponent(SelectHostComponent);
+    fixture.componentInstance.dropdown = true;
+    fixture.componentInstance.multiple = true;
+    fixture.detectChanges();
+    focusSelect(fixture);
+
+    input.simulateKey(key(' '));
+    input.simulateKey(key(' '));
+    const select = fixture.debugElement.query(By.directive(SelectComponent))
+      .componentInstance as SelectComponent;
+    expect(select.openList()).toBe(true);
+    expect(fixture.componentInstance.selection()).toEqual([0]);
+
+    input.simulateKey(key('escape'));
+    expect(select.openList()).toBe(false);
   });
 
   it('renders selected labels in multiple mode', () => {

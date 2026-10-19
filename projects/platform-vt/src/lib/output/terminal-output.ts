@@ -57,6 +57,11 @@ export class TerminalOutput {
     return this.screenBuffer;
   }
 
+  /** Number of cells changed in the last flushed frame. */
+  get lastChangedCells(): number {
+    return this.screenBuffer.lastChangedCells;
+  }
+
   private readonly screenBuffer = new ScreenBuffer();
   private colorMode: ColorMode = 'truecolor';
   private selection: CellRegion[] | null = null;

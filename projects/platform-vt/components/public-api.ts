@@ -11,6 +11,11 @@ export type { LogEntry, LogLevel } from '@quenetiq/platform-vt';
 export { GaugeComponent } from '@quenetiq/platform-vt';
 export { HeatmapComponent, HEATMAP_PALETTE } from '@quenetiq/platform-vt';
 export { BreadcrumbComponent } from '@quenetiq/platform-vt';
+export {
+  DatePickerComponent,
+  MONTH_NAMES,
+  WEEKDAY_NAMES,
+} from '@quenetiq/platform-vt';
 export { TextComponent } from '@quenetiq/platform-vt';
 export { NewlineComponent } from '@quenetiq/platform-vt';
 export { SpacerComponent } from '@quenetiq/platform-vt';

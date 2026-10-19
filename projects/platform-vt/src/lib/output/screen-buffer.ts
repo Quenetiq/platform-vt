@@ -82,6 +82,9 @@ export interface CellRegion {
  * cell below (transparency), and any other attribute overwrites it.
  */
 export class ScreenBuffer {
+  /** Number of cells changed in the last {@link paint} pass. */
+  lastChangedCells = 0;
+
   private width = 0;
   private height = 0;
   private cells: Cell[] = [];
@@ -149,6 +152,7 @@ export class ScreenBuffer {
     const out: string[] = [];
     const prev = this.prev;
     this.prev = this.cells.slice();
+    let changedCells = 0;
 
     if (!prev) {
       out.push(cursor.hide());
@@ -193,6 +197,7 @@ export class ScreenBuffer {
           break;
         }
 
+        changedCells += end - x;
         out.push(cursor.moveTo(x, y));
         lastStyle = emitSgr(out, cell, lastStyle, colorMode);
 
@@ -214,6 +219,7 @@ export class ScreenBuffer {
 
     out.push(reset());
     out.push(cursor.show());
+    this.lastChangedCells = changedCells;
     return out.join('');
   }
 

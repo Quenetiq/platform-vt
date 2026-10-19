@@ -41,6 +41,8 @@ export class RenderService {
   readonly lastRenderTime = signal(0);
   /** Duration of the last full render pass in milliseconds. */
   readonly lastRenderDuration = signal(0);
+  /** Number of screen cells changed in the last frame. */
+  readonly lastDirtyCells = signal(0);
 
   /**
    * The layout trees from the most recent render, one per layer.
@@ -129,6 +131,7 @@ export class RenderService {
         }
         this.layerLayouts = layers;
         this.output.flush();
+        this.lastDirtyCells.set(this.output.lastChangedCells);
 
         this.renderCount.update((c) => c + 1);
         this.lastRenderTime.set(Date.now());

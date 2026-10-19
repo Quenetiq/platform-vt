@@ -133,6 +133,11 @@ export type { LogEntry, LogLevel } from './lib/components/log-viewer/log-viewer.
 export { GaugeComponent } from './lib/components/gauge/gauge.component';
 export { HeatmapComponent, HEATMAP_PALETTE } from './lib/components/heatmap/heatmap.component';
 export { BreadcrumbComponent } from './lib/components/breadcrumb/breadcrumb.component';
+export {
+  DatePickerComponent,
+  MONTH_NAMES,
+  WEEKDAY_NAMES,
+} from './lib/components/datepicker/datepicker.component';
 export { vimTranslate, VIM_NAVIGATION } from './lib/keymaps/vim.presets';
 export {
   TerminalErrorHandler,

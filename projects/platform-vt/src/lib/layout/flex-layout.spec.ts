@@ -125,6 +125,28 @@ describe('FlexLayout', () => {
     expect(result.height).toBe(3);
   });
 
+  it('pans scroll-container content horizontally with scrollLeft', () => {
+    const root = createVTNode('root');
+    root.styles.set('flexDirection', 'row');
+    root.styles.set('overflow', 'scroll');
+    root.styles.set('width', 10);
+    root.styles.set('height', 2);
+
+    const wide = createVTNode('element');
+    wide.styles.set('width', 20);
+    appendVTChild(root, wide);
+
+    const result = layout.calculate(root, 80, 24);
+
+    expect(result.vtNode.styles.get('scrollWidth')).toBe(20);
+    expect(result.children[0]!.width).toBe(20);
+
+    root.styles.set('scrollLeft', 5);
+    const panned = layout.calculate(root, 80, 24);
+    expect(panned.vtNode.styles.get('scrollLeft')).toBe(5);
+    expect(panned.children[0]!.x).toBe(-5);
+  });
+
   it('stretches children within the resolved box, not the offered space', () => {
     const root = createVTNode('root');
     root.styles.set('flexDirection', 'row');

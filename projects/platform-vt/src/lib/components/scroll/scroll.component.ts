@@ -6,6 +6,7 @@ import {
   input,
   output,
   signal,
+  linkedSignal,
   DestroyRef,
 } from '@angular/core';
 import { VtLayoutDirective } from '../../directives/flex-layout.directive';
@@ -56,6 +57,12 @@ export class ScrollViewComponent {
   /** Scroll offset in rows, or `'bottom'` (default) to pin to the newest content. */
   readonly scrollTop = input<number | 'bottom'>('bottom');
 
+  /** Horizontal scroll offset in columns, or `'right'` to pin to the end. */
+  readonly scrollLeft = input<number | 'right'>(0);
+
+  /** Whether horizontal wheel events pan the viewport. */
+  readonly horizontal = input<boolean>(false);
+
   /** Whether the mouse wheel can scroll this viewport (requires WheelService). */
   readonly wheelScroll = input<boolean>(true);
 
@@ -65,12 +72,18 @@ export class ScrollViewComponent {
   /** Emits the current offset (`number | 'bottom'`) when it changes. */
   readonly scrollChange = output<number | 'bottom'>();
 
+  /** Emits the current horizontal offset (`number | 'right'`) when it changes. */
+  readonly scrollLeftChange = output<number | 'right'>();
+
   private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderService = inject(RenderService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Current scroll offset, or `'bottom'` while pinned to the newest content. */
   private readonly offset = signal<number | 'bottom'>('bottom');
+
+  /** Current horizontal offset, or `'right'` while pinned to the end. */
+  private readonly offsetX = linkedSignal<number | 'right'>(() => this.scrollLeft());
 
   constructor() {
     effect(() => {
@@ -100,6 +113,9 @@ export class ScrollViewComponent {
         } else {
           body.setAttribute('scroll-top', String(current));
         }
+        const currentX = this.offsetX();
+        if (currentX === 'right') body.setAttribute('scroll-left', 'right');
+        else body.setAttribute('scroll-left', String(currentX));
       }
 
       const track = el.querySelector<HTMLElement>('.vt-scroll-track');
@@ -133,13 +149,27 @@ export class ScrollViewComponent {
           const body = this.elementRef.nativeElement.querySelector<HTMLElement>('.vt-scroll-body');
           if (!body) return;
           const node = this.renderService.getElementLayout(body);
+          const delta = event.scrollDirection === 'up' ? -1 : 1;
+
+          if (event.scrollAxis === 'horizontal') {
+            if (!this.horizontal()) return;
+            const viewportW = node?.width ?? 1;
+            const scrollWidth = node?.vtNode.styles.get('scrollWidth');
+            const contentW = typeof scrollWidth === 'number' ? scrollWidth : viewportW;
+            const maxLeft = Math.max(0, contentW - viewportW);
+            const currentX = this.offsetX();
+            const current = currentX === 'right' ? maxLeft : currentX;
+            const next = Math.max(0, Math.min(maxLeft, current + delta));
+            this.setOffsetX(next >= maxLeft ? 'right' : next);
+            return;
+          }
+
           const viewportH = node?.height ?? 1;
           const scrollHeight = node?.vtNode.styles.get('scrollHeight');
           const contentH = typeof scrollHeight === 'number' ? scrollHeight : viewportH;
           const maxTop = Math.max(0, contentH - viewportH);
           const offset = this.offset();
           const current = offset === 'bottom' ? maxTop : offset;
-          const delta = event.scrollDirection === 'up' ? -1 : 1;
           const next = Math.max(0, Math.min(maxTop, current + delta));
           this.setOffset(next >= maxTop ? 'bottom' : next);
           this.renderService.scheduleRender();
@@ -157,6 +187,14 @@ export class ScrollViewComponent {
     if (previous === value) return;
     this.offset.set(value);
     this.scrollChange.emit(value);
+  }
+
+  private setOffsetX(value: number | 'right'): void {
+    const previous = this.offsetX();
+    if (previous === value) return;
+    this.offsetX.set(value);
+    this.scrollLeftChange.emit(value);
+    this.renderService.scheduleRender();
   }
 
   /** Paint the scrollbar thumb from the last rendered layout. */

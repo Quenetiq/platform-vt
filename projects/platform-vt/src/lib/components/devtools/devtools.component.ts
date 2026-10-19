@@ -33,6 +33,7 @@ export class DevtoolsComponent {
         `size      ${String(this.terminal.columns())}x${String(this.terminal.rows())}`,
         `renders   ${String(this.render.renderCount())}`,
         `frame     ${this.render.lastRenderDuration().toFixed(2)}ms`,
+        `dirty     ${String(this.render.lastDirtyCells())} cells`,
         `layout    ${String(stats.nodes)} nodes / depth ${String(stats.depth)}`,
         `focus     ${this.focus.focused()?.id ?? '-'}`,
         `overlays  ${String(document.querySelectorAll('vt-overlay-panel').length)}`,

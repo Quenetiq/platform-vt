@@ -289,21 +289,30 @@ export class FlexLayout {
       childLayouts.push(abs);
     }
 
-    // Scroll offset: pin the newest content to the bottom of the viewport.
+    // Scroll offsets: vertical pins to the newest content by default;
+    // horizontal is explicit (`scrollLeft`) and lets wide content pan.
     if (isScrollContainer) {
       const contentHeight = childLayouts.reduce(
         (max, c) => Math.max(max, c.y + c.height - Math.floor(y)),
         0,
       );
-      const viewport = Math.floor(boxH + padY);
-      const scrollTop = this.resolveScrollTop(vtNode, contentHeight, viewport);
-      if (scrollTop > 0) {
+      const contentWidth = childLayouts.reduce(
+        (max, c) => Math.max(max, c.x + c.width - Math.floor(x)),
+        0,
+      );
+      const viewportHeight = Math.floor(boxH + padY);
+      const viewportWidth = Math.floor(boxW + padX);
+      const scrollTop = this.resolveScrollTop(vtNode, contentHeight, viewportHeight);
+      const scrollLeft = this.resolveScrollLeft(vtNode, contentWidth, viewportWidth);
+      if (scrollTop > 0 || scrollLeft > 0) {
         for (const child of childLayouts) {
-          this.applyScrollOffset(child, -scrollTop);
+          this.applyScrollOffset(child, -scrollTop, -scrollLeft);
         }
       }
       vtNode.styles.set('scrollTop', scrollTop);
       vtNode.styles.set('scrollHeight', contentHeight);
+      vtNode.styles.set('scrollLeft', scrollLeft);
+      vtNode.styles.set('scrollWidth', contentWidth);
     }
 
     return {
@@ -597,11 +606,26 @@ export class FlexLayout {
     return Math.max(0, contentHeight - viewportHeight);
   }
 
-  private applyScrollOffset(node: LayoutNode, dy: number): void {
-    if (dy === 0) return;
+  private resolveScrollLeft(
+    vtNode: VTNode,
+    contentWidth: number,
+    viewportWidth: number,
+  ): number {
+    const explicit = vtNode.styles.get('scrollLeft');
+    const max = Math.max(0, contentWidth - viewportWidth);
+    if (explicit === 'right') return max;
+    if (typeof explicit === 'number') {
+      return Math.max(0, Math.min(explicit, max));
+    }
+    return 0;
+  }
+
+  private applyScrollOffset(node: LayoutNode, dy: number, dx = 0): void {
+    if (dy === 0 && dx === 0) return;
     node.y += dy;
+    node.x += dx;
     for (const child of node.children) {
-      this.applyScrollOffset(child, dy);
+      this.applyScrollOffset(child, dy, dx);
     }
   }
 

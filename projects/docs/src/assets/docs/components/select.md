@@ -19,6 +19,8 @@ the `value` input) to read the label.
 | `value` | `number` | `0` | Selected option index (single mode) |
 | `multiple` | `boolean` | `false` | Allow several selected options |
 | `filterable` | `boolean` | `false` | Typing narrows the option list |
+| `dropdown` | `boolean` | `false` | Expand an inline listbox |
+| `maxVisibleOptions` | `number` | `8` | Option rows rendered by the dropdown |
 | `placeholder` | `string` | `'Select...'` | Text shown when a multi-select is empty |
 | `autofocus` | `boolean` | `false` | Focus on mount |
 
@@ -41,6 +43,19 @@ the `value` input) to read the label.
 | Printable keys | Filter (when `filterable`) or type-ahead |
 
 ## Examples
+
+### Inline dropdown
+
+```html
+<vt-select
+  [options]="['Small', 'Medium', 'Large']"
+  [dropdown]="true"
+  (valueChange)="size.set($event)">
+</vt-select>
+```
+
+`Enter`/`Space` opens the list, arrows move the highlight, `Enter` selects,
+and `Esc` closes it. With `filterable`, typing filters the visible options.
 
 ### Single select with filtering
 

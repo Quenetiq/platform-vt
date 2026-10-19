@@ -3,12 +3,14 @@ import {
   BoxComponent,
   BreadcrumbComponent,
   ButtonComponent,
+  DatePickerComponent,
   GaugeComponent,
   GridComponent,
   HeatmapComponent,
   InputComponent,
   LogViewerComponent,
   MarkdownComponent,
+  SelectComponent,
   SeparatorComponent,
   TableComponent,
   TextComponent,
@@ -188,8 +190,42 @@ export class SampleGrid {}
 })
 export class SampleWindow {}
 
+@Component({
+  selector: 'app-sample-select',
+  standalone: true,
+  imports: [SelectComponent],
+  template: `
+    <vt-select
+      [options]="['Small', 'Medium', 'Large']"
+      [dropdown]="true"
+      [filterable]="true"
+      (valueChange)="size.set($event)"
+    ></vt-select>
+  `,
+})
+export class SampleSelect {
+  readonly size = signal(1);
+}
+
+@Component({
+  selector: 'app-sample-datepicker',
+  standalone: true,
+  imports: [DatePickerComponent],
+  template: `
+    <vt-datepicker
+      [value]="date()"
+      (valueChange)="date.set($event)"
+    ></vt-datepicker>
+  `,
+})
+export class SampleDatePicker {
+  readonly date = signal<string | null>('2026-03-15');
+}
+
 /** Docs slugs that carry a live terminal preview. */
 export const DOC_SAMPLES: Record<string, () => Type<unknown>> = {
+  'components/select': () => SampleSelect,
+  'components/datepicker': () => SampleDatePicker,
   'components/input': () => SampleForm,
   'components/button': () => SampleForm,
   'components/markdown': () => SampleMarkdown,

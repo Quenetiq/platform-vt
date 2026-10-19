@@ -1,12 +1,14 @@
-# ScrollView
+# Scroll
 
-Scrollable viewport with optional fixed header/footer.
+A scrollable viewport with vertical and horizontal panning.
 
 ## Usage
 
 ```html
-<vt-scroll [height]="10">
-  <!-- long content here -->
+<vt-scroll [height]="10" (scrollChange)="save($event)">
+  @for (line of lines(); track $index) {
+    <vt-text [content]="line"></vt-text>
+  }
 </vt-scroll>
 ```
 
@@ -14,40 +16,39 @@ Scrollable viewport with optional fixed header/footer.
 
 | Input | Type | Default | Description |
 |---|---|---|---|
-| `height` | `number` | `10` | Viewport height in rows |
-| `offset` | `number` | `0` | Scroll offset (first visible row) |
+| `scrollTop` | `number \| 'bottom'` | `'bottom'` | Vertical offset; `'bottom'` pins to the newest content |
+| `scrollLeft` | `number \| 'right'` | `0` | Horizontal offset; `'right'` pins to the end |
+| `height` | `number` | — | Viewport height (cells) |
+| `horizontal` | `boolean` | `false` | Enable horizontal mouse-wheel panning |
+| `wheelScroll` | `boolean` | `true` | Enable wheel scrolling |
+| `showScrollbar` | `boolean` | `false` | Show a vertical scrollbar thumb |
 
-## Description
+## Outputs
 
-`ScrollViewComponent` wraps child content in a fixed-height viewport. Only children within the `[offset, offset + height)` range are visible. Content outside the viewport is clipped.
+| Output | Type | Description |
+|---|---|---|
+| `scrollChange` | `number \| 'bottom'` | Vertical offset changed |
+| `scrollLeftChange` | `number \| 'right'` | Horizontal offset changed |
 
-## Examples
+## Behavior
 
-### Basic Scroll
+- New content is pinned to the bottom by default (chat/log style).
+- Scrolling up pins the viewport; scrolling back to the bottom re-enables
+  bottom pinning.
+- Mouse wheel scrolling requires the wheel service (provided by
+  `bootstrapTerminal`). Horizontal wheel events (SGR buttons 6/7) pan when
+  `[horizontal]="true"`.
+- Set `scrollLeft` explicitly for wide content, or `"right"` to pin to the
+  end.
+
+## Example
 
 ```html
-<vt-box flexDirection="column" [gap]="1">
-  <vt-text fontWeight="bold">Scrollable List</vt-text>
-  <vt-scroll [height]="8" [offset]="scrollOffset()">
-    @for (item of items(); track item) {
-      <vt-text>{{ item }}</vt-text>
-    }
-  </vt-scroll>
-  <vt-text color="gray">Offset: {{ scrollOffset() }}</vt-text>
-</vt-box>
-```
-
-### With Keyboard Navigation
-
-```typescript
-readonly scrollOffset = signal(0);
-readonly items = signal(Array.from({ length: 50 }, (_, i) => `Item ${i + 1}`));
-
-onKeyDown(event: KeyEvent) {
-  if (event.name === 'down') {
-    this.scrollOffset.update(o => Math.min(o + 1, this.items().length - 8));
-  } else if (event.name === 'up') {
-    this.scrollOffset.update(o => Math.max(0, o - 1));
-  }
-}
+<vt-scroll
+  [height]="12"
+  [horizontal]="true"
+  [scrollLeft]="0"
+  (scrollChange)="offset.set($event)">
+  <vt-text [content]="wideTable"></vt-text>
+</vt-scroll>
 ```

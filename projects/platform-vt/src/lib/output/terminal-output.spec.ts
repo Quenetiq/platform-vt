@@ -55,6 +55,24 @@ describe('TerminalOutput', () => {
     expect(outputText).toContain('\x1b[?25h');
   });
 
+  it('reports changed cells for each frame', () => {
+    const root = createVTNode('root');
+    const text = createVTNode('text');
+    text.textContent = 'abc';
+    appendVTChild(root, text);
+    const tree = (): LayoutNode => layoutNode(root, 0, 0, 80, 1, [layoutNode(text, 0, 0, 3, 1)]);
+
+    output.render(tree(), 80, 1);
+    output.flush();
+    expect(output.lastChangedCells).toBeGreaterThan(0);
+
+    const first = output.lastChangedCells;
+    output.render(tree(), 80, 1);
+    output.flush();
+    expect(output.lastChangedCells).toBe(0);
+    expect(first).toBeGreaterThan(0);
+  });
+
   it('strips escape sequences and bidi controls from untrusted text', () => {
     const root = createVTNode('root');
     const text = createVTNode('text');

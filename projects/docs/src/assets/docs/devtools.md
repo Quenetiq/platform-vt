@@ -25,6 +25,7 @@ providers cover input, focus and rendering.
 - Terminal size in columns × rows
 - Total render passes
 - Duration of the last frame (ms)
+- Number of dirty/changed cells in the last frame
 - Layout tree node count and depth
 - Focused element id
 - Open overlay panel count

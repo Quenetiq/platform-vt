@@ -34,6 +34,8 @@ export interface VTMouseEvent {
   button: VTMouseButton;
   /** Wheel direction, only set for `type === 'scroll'`. */
   scrollDirection?: 'up' | 'down';
+  /** Wheel axis, only set for `type === 'scroll'`. */
+  scrollAxis?: 'vertical' | 'horizontal';
   /** Whether Shift was held. */
   shift: boolean;
   /** Whether Meta/Alt was held. */
@@ -88,10 +90,13 @@ export function parseSgrMouse(sequence: string): VTMouseEvent | null {
   let type: VTMouseEventType;
   let button: VTMouseButton;
   let scrollDirection: 'up' | 'down' | undefined;
+  let scrollAxis: 'vertical' | 'horizontal' | undefined;
 
   if ((code & 64) !== 0) {
     type = 'scroll';
     scrollDirection = (code & 1) !== 0 ? 'down' : 'up';
+    // Buttons 6/7 (codes 66/67) are horizontal wheel events.
+    scrollAxis = (code & 2) !== 0 ? 'horizontal' : 'vertical';
     button = 'none';
   } else if ((code & 32) !== 0) {
     type = 'move';
@@ -104,7 +109,18 @@ export function parseSgrMouse(sequence: string): VTMouseEvent | null {
     button = mouseButton(code);
   }
 
-  return { x, y, type, button, scrollDirection, shift, meta, ctrl, raw: sequence };
+  return {
+    x,
+    y,
+    type,
+    button,
+    scrollDirection,
+    scrollAxis,
+    shift,
+    meta,
+    ctrl,
+    raw: sequence,
+  };
 }
 
 /**
