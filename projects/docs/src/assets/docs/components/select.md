@@ -1,68 +1,76 @@
 # Select
 
-Dropdown selection with arrow key navigation.
+Single- or multi-select control with filtering and type-ahead.
 
 ## Usage
 
 ```html
-<vt-select [options]="options" (selected)="onSelect($event)"></vt-select>
+<vt-select [options]="options" (valueChange)="onIndex($event)"></vt-select>
 ```
+
+`valueChange` emits the selected **option index**. Use `options[value()]` (or
+the `value` input) to read the label.
 
 ## Inputs
 
 | Input | Type | Default | Description |
 |---|---|---|---|
-| `options` | `string[]` | `[]` | Available options |
-| `value` | `string \| undefined` | `undefined` | Initially selected option |
+| `options` | `string[]` | — | Available options (required) |
+| `value` | `number` | `0` | Selected option index (single mode) |
+| `multiple` | `boolean` | `false` | Allow several selected options |
+| `filterable` | `boolean` | `false` | Typing narrows the option list |
+| `placeholder` | `string` | `'Select...'` | Text shown when a multi-select is empty |
+| `autofocus` | `boolean` | `false` | Focus on mount |
 
 ## Outputs
 
 | Output | Type | Description |
 |---|---|---|
-| `selected` | `string` | Emitted when an option is selected (Enter key) |
+| `valueChange` | `number` | Selected index (single mode) |
+| `selectionChange` | `number[]` | Selected indices (multiple mode) |
 
 ## Keyboard
 
 | Key | Action |
 |---|---|
-| Up | Move highlight up |
-| Down | Move highlight down |
-| Enter | Confirm selection |
-| Escape | Cancel (revert to previous) |
-| Home/End | Jump to first/last option |
-
-## Styling
-
-- **Unfocused**: Normal colors
-- **Focused, no selection**: Highlighted option has green background
-- **Focused, with selection**: Selected option has green background, highlighted has cyan background
+| Up / Down | Move the active option |
+| Home / End | Jump to the first/last option |
+| Enter | Confirm (single) / toggle (multiple) |
+| Space | Toggle the active option (multiple) |
+| Esc | Clear the filter |
+| Printable keys | Filter (when `filterable`) or type-ahead |
 
 ## Examples
 
-### Basic
+### Single select with filtering
 
 ```html
 <vt-select
   [options]="['Apple', 'Banana', 'Cherry']"
-  (selected)="onFruit($event)">
+  [filterable]="true"
+  (valueChange)="fruit.set(options[$event])">
 </vt-select>
 ```
 
-### Pre-selected
+### Multi-select
 
 ```html
 <vt-select
-  [options]="['Small', 'Medium', 'Large']"
-  [value]="'Medium'"
-  (selected)="onSize($event)">
+  [options]="tags"
+  [multiple]="true"
+  (selectionChange)="selected.set($event)">
 </vt-select>
 ```
 
-### In a Form
+### Type-ahead
+
+Without `filterable`, typing jumps to the first option with the given prefix.
 
 ```html
-<vt-box flexDirection="column" [gap]="1">
-  <vt-text fontWeight="bold">Choose your adventure:</vt-text>
-  <vt-select [options]="adventures" (selected)="startAdventure($event)"></vt-select>
-</vt-box>
+<vt-select [options]="countries" (valueChange)="pick($event)"></vt-select>
 ```
+
+## In a form
+
+`vt-form-field` tracks the selected index (single) or the joined labels
+(multiple) automatically.

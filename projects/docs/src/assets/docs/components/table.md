@@ -1,52 +1,76 @@
 # Table
 
-Fixed-width table with headers and rows.
+A bordered data table with sorting, filtering, multi-select, column
+resizing/reordering and row virtualization.
 
 ## Usage
 
 ```html
-<vt-table [headers]="headers" [rows]="rows"></vt-table>
+<vt-table
+  [columns]="['Name', 'Size']"
+  [rows]="items()"
+  [sortable]="true"
+  [filter]="query()"
+  (selectedChange)="select($event)">
+</vt-table>
 ```
 
 ## Inputs
 
 | Input | Type | Default | Description |
 |---|---|---|---|
-| `headers` | `string[]` | `[]` | Column headers |
-| `rows` | `string[][]` | `[]` | Table data rows |
-| `columnWidths` | `number[] \| undefined` | `undefined` | Fixed column widths |
+| `columns` | `string[]` | — | Column headers (required) |
+| `rows` | `string[][]` | — | Row data (required) |
+| `border` | `boolean` | `true` | Draw box borders |
+| `sortable` | `boolean` | `false` | Header clicks / arrows sort |
+| `sort` | `TableSort \| null` | `null` | Applied sort |
+| `viewportRows` | `number` | `10` | Virtualization window |
+| `selectable` | `boolean` | `true` | Allow row selection |
+| `filter` | `string` | `''` | Case-insensitive filter across all cells |
+| `multiSelect` | `boolean` | `false` | Space toggles rows |
+| `resizable` | `boolean` | `false` | `Ctrl+←/→` resizes the active column |
+| `reorderable` | `boolean` | `false` | `Alt+←/→` moves the active column |
+| `stickyHeader` | `boolean` | `true` | Keep the header visible while scrolling |
+| `minColumnWidth` | `number` | `3` | Minimum content width |
 
-## Layout
+## Outputs
 
-The table auto-calculates column widths based on content if `columnWidths` is not provided. Each column is padded and separated by `│` characters. Rows are separated by horizontal rules.
+| Output | Type | Description |
+|---|---|---|
+| `sortChange` | `TableSort \| null` | Sort column/direction changed |
+| `selectedChange` | `number` | Active row's original index |
+| `selectionChange` | `number[]` | Selected original indices (multi-select) |
+| `columnWidthsChange` | `number[]` | Column widths after a resize |
+| `columnOrderChange` | `number[]` | New column order (original indices) |
 
-## Styling
+## Keyboard
 
-- **Headers**: Bold, cyan background
-- **Rows**: Default colors
-- **Borders**: Single-line box drawing characters
+| Key | Action |
+|---|---|
+| Up / Down | Move the active row |
+| PageUp / PageDown | Move by one viewport |
+| Home / End | First / last row |
+| Space | Toggle the active row (multi-select) |
+| Ctrl+Left/Right | Shrink/grow the active column |
+| Alt+Left/Right | Move the active column |
+| Left / Right | Sort by the previous/next column |
 
-## Examples
+## Filtering and indices
 
-### Basic
+`filter` matches any cell. Outputs report the row's **original index** in the
+`rows` input, so selection stays stable across sorting and filtering.
+
+## Example
 
 ```html
 <vt-table
-  [headers]="['Name', 'Age', 'City']"
-  [rows]="[
-    ['Alice', '30', 'New York'],
-    ['Bob', '25', 'London'],
-    ['Charlie', '35', 'Tokyo']
-  ]">
-</vt-table>
-```
-
-### Fixed Widths
-
-```html
-<vt-table
-  [headers]="['ID', 'Status', 'Description']"
-  [rows]="rows()"
-  [columnWidths]="[8, 12, 40]">
+  [columns]="['File', 'Size', 'Status']"
+  [rows]="files()"
+  [sortable]="true"
+  [filter]="query()"
+  [multiSelect]="true"
+  [resizable]="true"
+  [reorderable]="true"
+  (selectionChange)="selectedRows.set($event)">
 </vt-table>
 ```

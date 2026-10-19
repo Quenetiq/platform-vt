@@ -81,6 +81,9 @@ npm start
 | Menu / Palette | `<vt-menu>` / `<vt-palette>` | Context menus and command palette |
 | Dialog | `DialogService` | Modal dialogs, confirm/prompt promises |
 | Markdown / Diff / Chart | `<vt-markdown>` / `<vt-diff>` / `<vt-chart>` | Rich rendering |
+| Log viewer | `<vt-log-viewer>` | Virtualized logs with levels, filter and auto-follow |
+| Gauge / Heatmap | `<vt-gauge>` / `<vt-heatmap>` | Dashboard meters and matrices |
+| Breadcrumb | `<vt-breadcrumb>` | Clickable navigation trail |
 | Image | `<vt-image>` | Sixel, kitty and iTerm2 inline images |
 | Progress / Spinner / Skeleton | `<vt-progress>` / `<vt-spinner>` / `<vt-skeleton>` | Async feedback |
 | ScrollView | `<vt-scroll>` | Scrollable viewport (chat-style, pins to bottom) |

@@ -1,5 +1,20 @@
 import { Component, signal, type Type } from '@angular/core';
-import { BoxComponent, TextComponent, SeparatorComponent, InputComponent, ButtonComponent, MarkdownComponent, TableComponent } from '@quenetiq/platform-vt';
+import {
+  BoxComponent,
+  BreadcrumbComponent,
+  ButtonComponent,
+  GaugeComponent,
+  GridComponent,
+  HeatmapComponent,
+  InputComponent,
+  LogViewerComponent,
+  MarkdownComponent,
+  SeparatorComponent,
+  TableComponent,
+  TextComponent,
+  WindowComponent,
+  type LogEntry,
+} from '@quenetiq/platform-vt';
 
 /** Live sample shown on the docs page for a component slug. */
 @Component({
@@ -72,10 +87,117 @@ export class SampleTable {
   readonly selected = signal(-1);
 }
 
+@Component({
+  selector: 'app-sample-log-viewer',
+  standalone: true,
+  imports: [LogViewerComponent],
+  template: `
+    <vt-log-viewer
+      [lines]="lines"
+      [height]="6"
+      [showTimestamps]="true"
+      [levels]="['info', 'warn', 'error']"
+    ></vt-log-viewer>
+  `,
+})
+export class SampleLogViewer {
+  readonly lines: LogEntry[] = [
+    { text: 'Starting build', level: 'info', timestamp: '12:00:00' },
+    { text: 'Resolving dependencies', level: 'info', timestamp: '12:00:01' },
+    { text: 'Cache miss for platform-vt', level: 'warn', timestamp: '12:00:02' },
+    { text: 'Compiling library', level: 'info', timestamp: '12:00:04' },
+    { text: 'Type error in app.ts:42', level: 'error', timestamp: '12:00:07' },
+    { text: 'Build failed', level: 'error', timestamp: '12:00:07' },
+  ];
+}
+
+@Component({
+  selector: 'app-sample-gauge',
+  standalone: true,
+  imports: [BoxComponent, GaugeComponent],
+  template: `
+    <vt-box flexDirection="column" [gap]="1">
+      <vt-gauge label="CPU" [value]="63" color="green"></vt-gauge>
+      <vt-gauge label="RAM" [value]="81" color="yellow"></vt-gauge>
+      <vt-gauge label="Disk" [value]="94" color="red"></vt-gauge>
+    </vt-box>
+  `,
+})
+export class SampleGauge {}
+
+@Component({
+  selector: 'app-sample-heatmap',
+  standalone: true,
+  imports: [HeatmapComponent],
+  template: `
+    <vt-heatmap
+      [data]="data"
+      [rowLabels]="['Mon', 'Tue', 'Wed']"
+      [columnLabels]="['00', '06', '12', '18']"
+    ></vt-heatmap>
+  `,
+})
+export class SampleHeatmap {
+  readonly data = [
+    [0, 2, 5, 8],
+    [1, 6, 9, 4],
+    [0, 1, 3, 2],
+  ];
+}
+
+@Component({
+  selector: 'app-sample-breadcrumb',
+  standalone: true,
+  imports: [BreadcrumbComponent],
+  template: `
+    <vt-breadcrumb
+      [items]="['Home', 'Projects', 'platform-vt']"
+      (itemClick)="current.set($event)"
+    ></vt-breadcrumb>
+  `,
+})
+export class SampleBreadcrumb {
+  readonly current = signal(0);
+}
+
+@Component({
+  selector: 'app-sample-grid',
+  standalone: true,
+  imports: [GridComponent, BoxComponent, TextComponent],
+  template: `
+    <vt-grid [columns]="2" [gap]="1">
+      <vt-box border="round" [padding]="1"><vt-text content="Card 1"></vt-text></vt-box>
+      <vt-box border="round" [padding]="1"><vt-text content="Card 2"></vt-text></vt-box>
+      <vt-box border="round" [padding]="1"><vt-text content="Card 3"></vt-text></vt-box>
+      <vt-box border="round" [padding]="1"><vt-text content="Card 4"></vt-text></vt-box>
+    </vt-grid>
+  `,
+})
+export class SampleGrid {}
+
+@Component({
+  selector: 'app-sample-window',
+  standalone: true,
+  imports: [WindowComponent, TextComponent],
+  template: `
+    <vt-window title="Settings" [x]="1" [y]="1" [width]="26" [height]="6">
+      <vt-text content="Drag the title bar."></vt-text>
+      <vt-text content="Ctrl+arrows resize."></vt-text>
+    </vt-window>
+  `,
+})
+export class SampleWindow {}
+
 /** Docs slugs that carry a live terminal preview. */
 export const DOC_SAMPLES: Record<string, () => Type<unknown>> = {
   'components/input': () => SampleForm,
   'components/button': () => SampleForm,
   'components/markdown': () => SampleMarkdown,
   'components/table': () => SampleTable,
+  'components/log-viewer': () => SampleLogViewer,
+  'components/gauge': () => SampleGauge,
+  'components/heatmap': () => SampleHeatmap,
+  'components/breadcrumb': () => SampleBreadcrumb,
+  'components/grid': () => SampleGrid,
+  'components/window': () => SampleWindow,
 };

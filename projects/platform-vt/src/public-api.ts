@@ -121,6 +121,11 @@ export { DiffComponent } from './lib/components/diff/diff.component';
 export { SkeletonComponent } from './lib/components/skeleton/skeleton.component';
 export { ChartComponent } from './lib/components/chart/chart.component';
 export type { ChartKind } from './lib/components/chart/chart.component';
+export { LogViewerComponent } from './lib/components/log-viewer/log-viewer.component';
+export type { LogEntry, LogLevel } from './lib/components/log-viewer/log-viewer.component';
+export { GaugeComponent } from './lib/components/gauge/gauge.component';
+export { HeatmapComponent, HEATMAP_PALETTE } from './lib/components/heatmap/heatmap.component';
+export { BreadcrumbComponent } from './lib/components/breadcrumb/breadcrumb.component';
 export { vimTranslate, VIM_NAVIGATION } from './lib/keymaps/vim.presets';
 export {
   TerminalErrorHandler,
