@@ -41,15 +41,9 @@ interface Todo {
       <vt-newline></vt-newline>
 
       <vt-box flexDirection="row" [gap]="1" alignItems="center">
-        <vt-text [width]="20">
-          Total: {{ todos().length }}
-        </vt-text>
-        <vt-text [width]="20" color="green">
-          Done: {{ doneCount() }}
-        </vt-text>
-        <vt-text [width]="20" color="red">
-          Left: {{ remainingCount() }}
-        </vt-text>
+        <vt-text [width]="20"> Total: {{ todos().length }} </vt-text>
+        <vt-text [width]="20" color="green"> Done: {{ doneCount() }} </vt-text>
+        <vt-text [width]="20" color="red"> Left: {{ remainingCount() }} </vt-text>
         <vt-spacer></vt-spacer>
         @if (todos().length > 0) {
           <vt-button label="Clear done" (clicked)="clearDone()"></vt-button>
@@ -71,11 +65,7 @@ interface Todo {
                 (checkedChange)="toggleTodo(todo.id, $event)"
               ></vt-checkbox>
               <vt-spacer></vt-spacer>
-              <vt-button
-                label="x"
-                variant="danger"
-                (clicked)="removeTodo(todo.id)"
-              ></vt-button>
+              <vt-button label="x" variant="danger" (clicked)="removeTodo(todo.id)"></vt-button>
             </vt-box>
           }
         </vt-box>
@@ -90,33 +80,24 @@ export class TodoPageComponent {
   private nextId = 1;
   protected readonly todos = signal<Todo[]>([]);
 
-  protected readonly doneCount = computed(() =>
-    this.todos().filter(t => t.done).length,
-  );
-  protected readonly remainingCount = computed(() =>
-    this.todos().filter(t => !t.done).length,
-  );
+  protected readonly doneCount = computed(() => this.todos().filter((t) => t.done).length);
+  protected readonly remainingCount = computed(() => this.todos().filter((t) => !t.done).length);
 
   addTodo(text: string): void {
     if (text.trim()) {
-      this.todos.update(list => [
-        ...list,
-        { id: this.nextId++, text: text.trim(), done: false },
-      ]);
+      this.todos.update((list) => [...list, { id: this.nextId++, text: text.trim(), done: false }]);
     }
   }
 
   toggleTodo(id: number, done: boolean): void {
-    this.todos.update(list =>
-      list.map(t => (t.id === id ? { ...t, done } : t)),
-    );
+    this.todos.update((list) => list.map((t) => (t.id === id ? { ...t, done } : t)));
   }
 
   removeTodo(id: number): void {
-    this.todos.update(list => list.filter(t => t.id !== id));
+    this.todos.update((list) => list.filter((t) => t.id !== id));
   }
 
   clearDone(): void {
-    this.todos.update(list => list.filter(t => !t.done));
+    this.todos.update((list) => list.filter((t) => !t.done));
   }
 }

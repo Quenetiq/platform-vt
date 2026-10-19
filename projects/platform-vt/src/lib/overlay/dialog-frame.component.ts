@@ -26,7 +26,14 @@ import { TextComponent } from '../components/text/text.component';
   selector: 'vt-dialog-frame',
   imports: [NgTemplateOutlet, BoxComponent, TextComponent],
   template: `
-    <vt-box flexDirection="column" [gap]="1" [padding]="1" border="double" [width]="width()" [height]="height()">
+    <vt-box
+      flexDirection="column"
+      [gap]="1"
+      [padding]="1"
+      border="double"
+      [width]="width()"
+      [height]="height()"
+    >
       @if (title()) {
         <vt-text [content]="title()" fontWeight="bold" color="cyan" textAlign="center"></vt-text>
       }

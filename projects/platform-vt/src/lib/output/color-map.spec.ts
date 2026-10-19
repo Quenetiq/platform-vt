@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  resolveColor,
-  wrapColor,
-  resolveColorRgb,
-  wrapColorRgb,
-} from './color-map';
+import { resolveColor, wrapColor, resolveColorRgb, wrapColorRgb } from './color-map';
 
 describe('resolveColor', () => {
   it('resolves named fg colors', () => {
@@ -44,9 +39,7 @@ describe('resolveColor', () => {
   });
 
   it('resolves rgb() colors as 24-bit RGB', () => {
-    expect(resolveColor('rgb(255, 255, 255)', 'fg')).toBe(
-      '\x1b[38;2;255;255;255m',
-    );
+    expect(resolveColor('rgb(255, 255, 255)', 'fg')).toBe('\x1b[38;2;255;255;255m');
   });
 });
 
@@ -66,9 +59,7 @@ describe('wrapColor', () => {
 
 describe('resolveColorRgb', () => {
   it('resolves named fg colors to 24-bit RGB', () => {
-    expect(resolveColorRgb('bright-white', 'fg')).toBe(
-      '\x1b[38;2;255;255;255m',
-    );
+    expect(resolveColorRgb('bright-white', 'fg')).toBe('\x1b[38;2;255;255;255m');
     expect(resolveColorRgb('red', 'fg')).toBe('\x1b[38;2;205;49;49m');
   });
 
@@ -83,9 +74,7 @@ describe('resolveColorRgb', () => {
   });
 
   it('resolves rgb() colors', () => {
-    expect(resolveColorRgb('rgb(139, 139, 139)', 'fg')).toBe(
-      '\x1b[38;2;139;139;139m',
-    );
+    expect(resolveColorRgb('rgb(139, 139, 139)', 'fg')).toBe('\x1b[38;2;139;139;139m');
   });
 
   it('returns null for unknown color', () => {
@@ -94,24 +83,18 @@ describe('resolveColorRgb', () => {
   });
 
   it('is case insensitive', () => {
-    expect(resolveColorRgb('Bright-White', 'fg')).toBe(
-      '\x1b[38;2;255;255;255m',
-    );
+    expect(resolveColorRgb('Bright-White', 'fg')).toBe('\x1b[38;2;255;255;255m');
     expect(resolveColorRgb('#2E2E2E', 'bg')).toBe('\x1b[48;2;46;46;46m');
   });
 
   it('resolves grey as alias for gray', () => {
-    expect(resolveColorRgb('grey', 'bg')).toBe(
-      resolveColorRgb('gray', 'bg'),
-    );
+    expect(resolveColorRgb('grey', 'bg')).toBe(resolveColorRgb('gray', 'bg'));
   });
 });
 
 describe('wrapColorRgb', () => {
   it('wraps text with 24-bit RGB codes', () => {
-    expect(wrapColorRgb('hello', 'bright-white', 'fg')).toBe(
-      '\x1b[38;2;255;255;255mhello\x1b[39m',
-    );
+    expect(wrapColorRgb('hello', 'bright-white', 'fg')).toBe('\x1b[38;2;255;255;255mhello\x1b[39m');
   });
 
   it('returns original text for unknown color', () => {
@@ -119,8 +102,6 @@ describe('wrapColorRgb', () => {
   });
 
   it('wraps with bg color', () => {
-    expect(wrapColorRgb('hello', 'gray', 'bg')).toBe(
-      '\x1b[48;2;105;105;105mhello\x1b[49m',
-    );
+    expect(wrapColorRgb('hello', 'gray', 'bg')).toBe('\x1b[48;2;105;105;105mhello\x1b[49m');
   });
 });

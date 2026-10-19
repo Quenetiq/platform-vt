@@ -1,4 +1,16 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef, computed, type OnDestroy } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+  computed,
+  type OnDestroy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
@@ -235,7 +247,9 @@ export class AutocompleteComponent implements OnDestroy {
       case 'backspace':
         if (this.cursorPos() > 0) {
           const current = this.localValue();
-          this.localValue.set(current.substring(0, this.cursorPos() - 1) + current.substring(this.cursorPos()));
+          this.localValue.set(
+            current.substring(0, this.cursorPos() - 1) + current.substring(this.cursorPos()),
+          );
           this.cursorPos.set(this.cursorPos() - 1);
           this.activeSuggestion.set(0);
           this.listOpen.set(true);
@@ -250,7 +264,11 @@ export class AutocompleteComponent implements OnDestroy {
       default:
         if (event.name.length === 1 && event.name.charCodeAt(0) >= 32) {
           const current = this.localValue();
-          this.localValue.set(current.substring(0, this.cursorPos()) + event.name + current.substring(this.cursorPos()));
+          this.localValue.set(
+            current.substring(0, this.cursorPos()) +
+              event.name +
+              current.substring(this.cursorPos()),
+          );
           this.cursorPos.set(this.cursorPos() + 1);
           this.activeSuggestion.set(0);
           this.listOpen.set(true);

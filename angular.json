@@ -158,7 +158,11 @@
                 "output": "/docs"
               }
             ],
-            "baseHref": "/platform-vt/"
+            "baseHref": "/platform-vt/",
+            "externalDependencies": [
+              "node:fs/promises",
+              "node:path"
+            ]
           },
           "configurations": {
             "production": {

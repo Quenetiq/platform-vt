@@ -5,17 +5,20 @@ import { VtSizingDirective } from '../../directives/sizing.directive';
 import { VtSpacingDirective } from '../../directives/spacing.directive';
 import { VtAppearanceDirective } from '../../directives/appearance.directive';
 import { VtTypographyDirective } from '../../directives/typography.directive';
+import { flipRtlRuns } from '../../utils/rtl';
 
 /**
  * A single line (or wrapped block) of terminal text.
  *
  * Styling comes from host directives; the component only owns the `content`
  * input and keeps the host wired up as a block-level, non-shrinking text node
- * for the layout engine.
+ * for the layout engine. With `[rtl]="true"` the text is reordered for
+ * right-to-left display (Hebrew/Arabic runs flipped) and right-aligned.
  *
  * @example
  * ```html
  * <vt-text content="Hello" [color]="'#58a6ff'" [wrap]="'wrap'"></vt-text>
+ * <vt-text content="שלום עולם" [rtl]="true"></vt-text>
  * ```
  */
 @Component({
@@ -28,8 +31,14 @@ import { VtTypographyDirective } from '../../directives/typography.directive';
     },
     { directive: VtSizingDirective, inputs: ['width', 'height'] },
     { directive: VtSpacingDirective, inputs: ['padding', 'margin', 'gap'] },
-    { directive: VtAppearanceDirective, inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'] },
-    { directive: VtTypographyDirective, inputs: ['fontStyle', 'textDecoration', 'opacity', 'wrap'] },
+    {
+      directive: VtAppearanceDirective,
+      inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'],
+    },
+    {
+      directive: VtTypographyDirective,
+      inputs: ['fontStyle', 'textDecoration', 'opacity', 'wrap'],
+    },
   ],
 })
 export class TextComponent {
@@ -39,14 +48,19 @@ export class TextComponent {
   /** The text content to display. */
   readonly content = input<string>('');
 
+  /** Render the text right-to-left (RTL runs flipped, right-aligned). */
+  readonly rtl = input<boolean>(false);
+
   constructor() {
     effect(() => {
       const el = this.elementRef.nativeElement as HTMLElement;
-      const c = this.content();
+      const c = this.rtl() ? flipRtlRuns(this.content()) : this.content();
       el.textContent = c;
       el.setAttribute('display', 'block');
       el.setAttribute('flex-shrink', '0');
       el.setAttribute('content', c);
+      if (this.rtl()) el.setAttribute('text-align', 'right');
+      else el.removeAttribute('text-align');
       this.renderService.scheduleRender();
     });
   }

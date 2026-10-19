@@ -41,7 +41,10 @@ const TREE: TreeNode[] = [
   {
     label: 'projects',
     children: [
-      { label: 'demo', children: [{ label: 'src', children: [{ label: 'main.ts' }, { label: 'app.ts' }] }] },
+      {
+        label: 'demo',
+        children: [{ label: 'src', children: [{ label: 'main.ts' }, { label: 'app.ts' }] }],
+      },
       { label: 'platform-vt', children: [{ label: 'src', children: [{ label: 'lib' }] }] },
     ],
   },
@@ -88,10 +91,18 @@ const TREE: TreeNode[] = [
   ],
   template: `
     <vt-box flexDirection="column" [gap]="1" [padding]="1" [flexGrow]="1">
-      <vt-text color="cyan" fontWeight="bold" content="Component Showcase — Tab to navigate, Ctrl+P for palette"></vt-text>
+      <vt-text
+        color="cyan"
+        fontWeight="bold"
+        content="Component Showcase — Tab to navigate, Ctrl+P for palette"
+      ></vt-text>
       <vt-separator></vt-separator>
 
-      <vt-tabs [tabs]="['Forms', 'Data', 'Layout']" [active]="tab()" (activeChange)="tab.set($event)"></vt-tabs>
+      <vt-tabs
+        [tabs]="['Forms', 'Data', 'Layout']"
+        [active]="tab()"
+        (activeChange)="tab.set($event)"
+      ></vt-tabs>
 
       @if (tab() === 0) {
         <vt-box flexDirection="column" [gap]="1" [padding]="1" border="single">
@@ -115,7 +126,12 @@ const TREE: TreeNode[] = [
             <vt-radio [checked]="size() === 'l'" value="l" label="Large"></vt-radio>
           </vt-radio-group>
           <vt-toggle label="Verbose" (checkedChange)="verbose.set($event)"></vt-toggle>
-          <vt-slider label="Volume" [value]="volume()" (valueChange)="volume.set($event)" [width]="30"></vt-slider>
+          <vt-slider
+            label="Volume"
+            [value]="volume()"
+            (valueChange)="volume.set($event)"
+            [width]="30"
+          ></vt-slider>
 
           <vt-newline></vt-newline>
           <vt-box flexDirection="row" [gap]="1">
@@ -137,7 +153,10 @@ const TREE: TreeNode[] = [
 
       @if (tab() === 1) {
         <vt-box flexDirection="column" [gap]="1" [padding]="1" border="single">
-          <vt-text fontWeight="bold" content="Sortable table (click a header, arrows select)"></vt-text>
+          <vt-text
+            fontWeight="bold"
+            content="Sortable table (click a header, arrows select)"
+          ></vt-text>
           <vt-table
             [columns]="['File', 'Lang', 'Size', 'Status']"
             [rows]="files()"
@@ -164,7 +183,12 @@ const TREE: TreeNode[] = [
       }
 
       @if (tab() === 2) {
-        <vt-split-view direction="row" [ratio]="ratio()" (ratioChange)="ratio.set($event)" [flexGrow]="1">
+        <vt-split-view
+          direction="row"
+          [ratio]="ratio()"
+          (ratioChange)="ratio.set($event)"
+          [flexGrow]="1"
+        >
           <vt-box flexDirection="column" [gap]="1" [padding]="1" border="single">
             <vt-text fontWeight="bold" content="Left pane"></vt-text>
             <vt-text [content]="'Drag the divider or Ctrl+←/→'"></vt-text>
@@ -211,7 +235,9 @@ export class ShowcasePage {
   readonly lastDialog = signal('—');
 
   readonly files = signal(FILES);
-  readonly sparkData = signal([3, 7, 2, 9, 5, 8, 6, 4, 10, 7, 5, 9, 3, 6, 8, 7, 5, 4, 9, 6, 5, 7, 8, 3, 6, 9, 4, 7, 5, 8]);
+  readonly sparkData = signal([
+    3, 7, 2, 9, 5, 8, 6, 4, 10, 7, 5, 9, 3, 6, 8, 7, 5, 4, 9, 6, 5, 7, 8, 3, 6, 9, 4, 7, 5, 8,
+  ]);
   readonly tree = signal(TREE);
   readonly leftLines = computed(() => [
     `ratio: ${this.ratio().toFixed(2)}`,

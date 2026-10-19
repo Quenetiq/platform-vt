@@ -28,9 +28,7 @@ bootstrapTerminal(App).then(async (app) => {
 
   const { firstValueFrom, filter } = await import('rxjs');
 
-  await firstValueFrom(
-    inputService.keyEvents.pipe(filter((e: any) => e.name === 'ctrl-c')),
-  );
+  await firstValueFrom(inputService.keyEvents.pipe(filter((e: any) => e.name === 'ctrl-c')));
 
   try {
     if (typeof (originalStdin as any).setRawMode === 'function') {

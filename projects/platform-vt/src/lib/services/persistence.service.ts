@@ -1,4 +1,12 @@
-import { Injectable, inject, signal, effect, makeEnvironmentProviders, type EnvironmentProviders, type WritableSignal } from '@angular/core';
+import {
+  Injectable,
+  inject,
+  signal,
+  effect,
+  makeEnvironmentProviders,
+  type EnvironmentProviders,
+  type WritableSignal,
+} from '@angular/core';
 import { nodeFs } from '../utils/node';
 import { TerminalService } from './terminal.service';
 
@@ -82,7 +90,10 @@ export class PersistenceService {
     this.loaded = true;
     try {
       if (fs.existsSync(this.filePath)) {
-        const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf8')) as Record<string, unknown>;
+        const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf8')) as Record<
+          string,
+          unknown
+        >;
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           this.state = parsed;
         }

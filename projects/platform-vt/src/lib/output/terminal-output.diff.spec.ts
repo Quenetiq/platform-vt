@@ -4,7 +4,14 @@ import type { LayoutNode } from '../layout/layout-node';
 import type { VTNode } from '../renderer/vt-node';
 import { createVTNode, appendVTChild, resetVTNodeId } from '../renderer/vt-node';
 
-function layoutNode(vtNode: VTNode, x = 0, y = 0, width = 10, height = 1, children: LayoutNode[] = []): LayoutNode {
+function layoutNode(
+  vtNode: VTNode,
+  x = 0,
+  y = 0,
+  width = 10,
+  height = 1,
+  children: LayoutNode[] = [],
+): LayoutNode {
   return { vtNode, x, y, width, height, children };
 }
 
@@ -22,10 +29,7 @@ describe('TerminalOutput diff rendering', () => {
     const a = createVTNode('text');
     a.textContent = 'hello';
     appendVTChild(root, a);
-    const s = renderOnce(
-      output,
-      layoutNode(root, 0, 0, 80, 24, [layoutNode(a, 0, 0, 5, 1)]),
-    );
+    const s = renderOnce(output, layoutNode(root, 0, 0, 80, 24, [layoutNode(a, 0, 0, 5, 1)]));
     expect(s).toContain('\x1b[2J');
     expect(s).toContain('hello');
   });

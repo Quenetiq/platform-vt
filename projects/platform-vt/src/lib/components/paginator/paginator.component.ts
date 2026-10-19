@@ -1,12 +1,21 @@
-import { Component, inject, input, output, signal, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  inject,
+  input,
+  output,
+  signal,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import type { VTNode } from '../../renderer/vt-node';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
 import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A page navigator: `◀ 1 2 3 … 12 ▶`.
@@ -40,7 +49,7 @@ export class PaginatorComponent {
   readonly pageChange = output<number>();
 
   readonly isFocused = signal(false);
-  private readonly id = `vt-paginator-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-paginator')();
 
   constructor() {
     effect(() => {

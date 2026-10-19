@@ -2,13 +2,50 @@ import { Component, inject, input, effect, ElementRef, signal } from '@angular/c
 import { cursor } from '../../output/ansi';
 import { readFileBuffer } from '../../utils/node';
 import { parsePpmP6, sixelWrite } from '../../output/sixel';
+import { decodePng } from '../../output/png';
 import { RenderService } from '../../services/render.service';
+import { InputService } from '../../services/input.service';
 import { TerminalService } from '../../services/terminal.service';
+import type { TerminalCapabilities } from '../../services/terminal.service';
 
 /**
  * Image transfer protocol used by {@link ImageComponent}.
  */
-export type ImageProtocol = 'iterm2' | 'kitty' | 'sixel';
+export type ImageProtocol = 'auto' | 'iterm2' | 'kitty' | 'sixel';
+
+/**
+ * Pick the image protocol that the terminal is most likely to support.
+ *
+ * Heuristic based on detected capabilities (see {@link detectCapabilities}):
+ * iTerm.app uses the OSC 1337 protocol, kitty/wezterm/ghostty support the
+ * kitty graphics protocol, and foot/mlterm/xterm-style terminals support
+ * sixel. Unknown terminals fall back to the iTerm2 protocol.
+ */
+export function autoImageProtocol(
+  capabilities: TerminalCapabilities,
+): Exclude<ImageProtocol, 'auto'> {
+  const program = capabilities.termProgram.toLowerCase();
+  const term = capabilities.term.toLowerCase();
+  if (program === 'iterm.app') return 'iterm2';
+  if (
+    term === 'xterm-kitty' ||
+    program === 'ghostty' ||
+    program === 'wezterm' ||
+    program === 'konsole'
+  ) {
+    return 'kitty';
+  }
+  if (
+    program === 'foot' ||
+    term.includes('foot') ||
+    term.includes('mlterm') ||
+    term.includes('contour') ||
+    term.includes('xterm')
+  ) {
+    return 'sixel';
+  }
+  return 'iterm2';
+}
 
 /**
  * Renders an actual image in supporting terminals.
@@ -51,11 +88,14 @@ export class ImageComponent {
   readonly widthPx = input<number | null>(null);
   /** Exact pixel height (overrides `height`). */
   readonly heightPx = input<number | null>(null);
-  /** Transfer protocol. Defaults to `'iterm2'`. */
-  readonly protocol = input<ImageProtocol>('iterm2');
+  /** Transfer protocol. `'auto'` (default) picks from terminal capabilities. */
+  readonly protocol = input<ImageProtocol>('auto');
 
   /** Whether the image was emitted to the terminal. */
   readonly emitted = signal(false);
+
+  /** Kitty graphics support from the startup query, when known. */
+  private readonly kittyGraphics = inject(InputService, { optional: true })?.kittyGraphics ?? null;
 
   constructor() {
     effect(() => {
@@ -88,7 +128,15 @@ export class ImageComponent {
     const widthPx = this.widthPx() ?? this.width() * 8;
     const heightPx = this.heightPx() ?? this.height() * 16;
 
-    const protocol = this.protocol();
+    const requested = this.protocol();
+    let protocol =
+      requested === 'auto' ? autoImageProtocol(this.terminal.capabilities()) : requested;
+
+    // The startup graphics query (when it answered "not supported") beats
+    // the term-name heuristic: kitty-proto images would silently not render.
+    if (protocol === 'kitty' && this.kittyGraphics?.() === false) {
+      protocol = 'sixel';
+    }
     if (protocol === 'kitty') {
       this.emitKitty(buffer, widthPx, heightPx, el);
       return;
@@ -97,9 +145,23 @@ export class ImageComponent {
       this.emitSixel(buffer, el);
       return;
     }
+    this.emitIterm2(buffer, widthPx, heightPx, el);
+  }
+
+  /**
+   * Emit an iTerm2 inline image (OSC 1337), placed at the component's cell
+   * position after the next render pass — the same cursor positioning as
+   * the kitty/sixel paths, so the image lands in its reserved grid space.
+   */
+  private emitIterm2(buffer: Buffer, widthPx: number, heightPx: number, el: HTMLElement): void {
     const base64 = buffer.toString('base64');
     const inline = `\x1b]1337;File=inline=1;preserveAspectRatio=0;width=${widthPx}px;height=${heightPx}px:${base64}\x07`;
-    this.terminal.write(inline);
+    const unregister = this.renderService.onFlush(() => {
+      const rect = this.renderService.getElementRect(el);
+      if (!rect) return;
+      unregister();
+      this.terminal.write(cursor.moveTo(rect.x, rect.y) + inline);
+    });
   }
 
   /**
@@ -114,9 +176,7 @@ export class ImageComponent {
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
       const last = i + chunkSize >= payload.length;
-      chunks.push(
-        `\x1b_Ga=T,f=32,s=${widthPx},v=${heightPx},m=${last ? 0 : 1};${chunk}\x1b\\`,
-      );
+      chunks.push(`\x1b_Ga=T,f=32,s=${widthPx},v=${heightPx},m=${last ? 0 : 1};${chunk}\x1b\\`);
     }
 
     const unregister = this.renderService.onFlush(() => {
@@ -128,11 +188,25 @@ export class ImageComponent {
   }
 
   /**
-   * Emit a PPM P6 image via the sixel protocol, placed at the component's
-   * cell position after the next render pass.
+   * Emit an image via the sixel protocol, placed at the component's cell
+   * position after the next render pass. PNG files are decoded in-process;
+   * otherwise the file must be a PPM P6 raster.
    */
   private emitSixel(buffer: Buffer, el: HTMLElement): void {
-    const { width, height, rgb } = parsePpmP6(buffer);
+    const png = decodePng(buffer);
+    let width: number;
+    let height: number;
+    let rgb: Uint8Array;
+    if (png) {
+      width = png.width;
+      height = png.height;
+      rgb = png.rgb;
+    } else {
+      const ppm = parsePpmP6(buffer);
+      width = ppm.width;
+      height = ppm.height;
+      rgb = ppm.rgb;
+    }
     const sequence = sixelWrite(width, height, rgb);
     const unregister = this.renderService.onFlush(() => {
       const rect = this.renderService.getElementRect(el);

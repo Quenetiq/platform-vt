@@ -1,4 +1,14 @@
-import { DestroyRef, Injectable, inject, Injector, signal, effect, type Type, type TemplateRef, type ComponentRef } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  Injector,
+  signal,
+  effect,
+  type Type,
+  type TemplateRef,
+  type ComponentRef,
+} from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../services/input.service';

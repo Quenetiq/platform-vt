@@ -10,6 +10,25 @@ import { InputService } from './input.service';
 import { MouseService } from './mouse.service';
 import type { VTMouseEvent, VTClickEvent } from './sgr-mouse';
 
+const click = (x: number, y: number, shift: boolean): VTClickEvent => ({
+  x,
+  y,
+  button: 'left',
+  shift,
+  meta: false,
+  ctrl: false,
+});
+const mouseEvent = (x: number, y: number, type: VTMouseEvent['type']): VTMouseEvent => ({
+  x,
+  y,
+  type,
+  button: 'left',
+  shift: false,
+  meta: false,
+  ctrl: false,
+  raw: '',
+});
+
 describe('normalizeRegion', () => {
   it('orders points so x1<=x2 and y1<=y2', () => {
     expect(normalizeRegion(10, 5, 2, 8)).toEqual({ x1: 2, y1: 5, x2: 10, y2: 8 });
@@ -21,25 +40,6 @@ describe('SelectionService', () => {
   let selection: SelectionService;
   let mouse: MouseService;
   let clipboard: ClipboardService;
-
-  const click = (x: number, y: number, shift: boolean): VTClickEvent => ({
-    x,
-    y,
-    button: 'left',
-    shift,
-    meta: false,
-    ctrl: false,
-  });
-  const mouseEvent = (x: number, y: number, type: VTMouseEvent['type']): VTMouseEvent => ({
-    x,
-    y,
-    type,
-    button: 'left',
-    shift: false,
-    meta: false,
-    ctrl: false,
-    raw: '',
-  });
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -91,7 +91,9 @@ describe('SelectionService', () => {
   it('escape clears the selection', () => {
     mouse.clicks.next(click(1, 1, true));
     expect(selection.region()).not.toBeNull();
-    (TestBed.inject(InputService) as unknown as { keySubject: { next: (e: unknown) => void } }).keySubject.next({
+    (
+      TestBed.inject(InputService) as unknown as { keySubject: { next: (e: unknown) => void } }
+    ).keySubject.next({
       name: 'escape',
       ctrl: false,
       meta: false,
@@ -105,5 +107,100 @@ describe('SelectionService', () => {
     mouse.clicks.next(click(1, 1, true));
     selection.clear();
     expect(selection.region()).toBeNull();
+  });
+
+  it('shift+click adds additional regions (multi-region selection)', () => {
+    mouse.clicks.next(click(1, 1, true));
+    mouse.clicks.next(click(4, 4, true));
+    mouse.clicks.next(click(7, 2, true));
+
+    expect(selection.regions()).toEqual([
+      { x1: 1, y1: 1, x2: 1, y2: 1 },
+      { x1: 4, y1: 4, x2: 4, y2: 4 },
+      { x1: 7, y1: 2, x2: 7, y2: 2 },
+    ]);
+    expect(selection.region()).toEqual({ x1: 7, y1: 2, x2: 7, y2: 2 });
+  });
+
+  it('dragging extends only the most recent region', () => {
+    mouse.clicks.next(click(1, 1, true));
+    mouse.clicks.next(click(4, 4, true));
+    mouse.mouseEvents.next(mouseEvent(8, 6, 'move'));
+
+    expect(selection.regions()).toEqual([
+      { x1: 1, y1: 1, x2: 1, y2: 1 },
+      { x1: 4, y1: 4, x2: 8, y2: 6 },
+    ]);
+  });
+
+  it('escape clears all regions', () => {
+    mouse.clicks.next(click(1, 1, true));
+    mouse.clicks.next(click(2, 2, true));
+    (
+      TestBed.inject(InputService) as unknown as { keySubject: { next: (e: unknown) => void } }
+    ).keySubject.next({
+      name: 'escape',
+      ctrl: false,
+      meta: false,
+      shift: false,
+      sequence: '\x1b',
+    });
+    expect(selection.regions()).toEqual([]);
+    expect(selection.region()).toBeNull();
+  });
+});
+
+describe('SelectionService dragToSelect', () => {
+  let selection: SelectionService;
+  let mouse: MouseService;
+  let clipboard: ClipboardService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        TerminalService,
+        RenderService,
+        InputService,
+        MouseService,
+        ClipboardService,
+        provideClickService(),
+        provideSelectionService({ dragToSelect: true }),
+        provideClipboardService(),
+        provideZonelessChangeDetection(),
+      ],
+    });
+    const terminal = TestBed.inject(TerminalService);
+    vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
+
+    selection = TestBed.inject(SelectionService);
+    mouse = TestBed.inject(MouseService);
+    clipboard = TestBed.inject(ClipboardService);
+  });
+
+  const down = (x: number, y: number): VTMouseEvent => mouseEvent(x, y, 'down');
+  const up = (x: number, y: number): VTMouseEvent => mouseEvent(x, y, 'up');
+
+  it('a plain drag selects and copies without Shift', () => {
+    const copy = vi.spyOn(clipboard, 'copy').mockImplementation(() => undefined);
+    mouse.mouseEvents.next(down(2, 2));
+    mouse.mouseEvents.next(mouseEvent(5, 7, 'move'));
+    mouse.mouseEvents.next(up(5, 7));
+
+    expect(selection.region()).toEqual({ x1: 2, y1: 2, x2: 5, y2: 7 });
+    // Nothing rendered yet, so the region has no text: nothing is copied.
+    expect(copy).not.toHaveBeenCalled();
+  });
+
+  it('a plain click without movement does not create a region', () => {
+    mouse.mouseEvents.next(down(3, 3));
+    mouse.mouseEvents.next(up(3, 3));
+
+    expect(selection.regions()).toEqual([]);
+    expect(selection.region()).toBeNull();
+  });
+
+  it('shift+click still adds a region', () => {
+    mouse.clicks.next(click(1, 1, true));
+    expect(selection.regions()).toHaveLength(1);
   });
 });

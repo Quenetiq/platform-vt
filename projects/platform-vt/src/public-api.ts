@@ -1,5 +1,11 @@
 // VTNode types (used internally, exported for type compatibility)
-export { createVTNode, appendVTChild, insertVTBefore, removeVTChild, resetVTNodeId } from './lib/renderer/vt-node';
+export {
+  createVTNode,
+  appendVTChild,
+  insertVTBefore,
+  removeVTChild,
+  resetVTNodeId,
+} from './lib/renderer/vt-node';
 export type { VTNode, VTNodeType, LayoutRect } from './lib/renderer/vt-node';
 
 // Layout
@@ -11,6 +17,7 @@ export { resolveFlexStyles, isFlexContainer } from './lib/layout/resolve-styles'
 // Output
 export { TerminalOutput } from './lib/output/terminal-output';
 export { cursor, erase, fg, bg, txt, reset, ESC, mode, osc } from './lib/output/ansi';
+export type { CursorShape, TerminalProgressState } from './lib/output/ansi';
 export {
   resolveColor,
   wrapColor,
@@ -36,11 +43,30 @@ export {
 } from './lib/output/unicode-width';
 export { wrapText } from './lib/output/wrap-text';
 export { sixelEncode, sixelWrite, parsePpmP6 } from './lib/output/sixel';
+export { decodePng } from './lib/output/png';
+export type { DecodedPng } from './lib/output/png';
 
 // Services
 export { TerminalService } from './lib/services/terminal.service';
 export { detectCapabilities } from './lib/services/terminal.service';
 export type { TerminalCapabilities } from './lib/services/terminal.service';
+export {
+  ThemeService,
+  provideTheme,
+  parseOscColor,
+  detectColorScheme,
+  colorSchemeForBackground,
+  DARK_THEME,
+  LIGHT_THEME,
+} from './lib/services/theme.service';
+export type { ColorScheme, ThemeColors, ThemeQueryResult } from './lib/services/theme.service';
+export {
+  BreakpointService,
+  provideBreakpoints,
+  BREAKPOINT_CONFIG,
+  DEFAULT_BREAKPOINTS,
+} from './lib/services/breakpoint.service';
+export type { Breakpoint, BreakpointConfig } from './lib/services/breakpoint.service';
 export { RenderService, provideRenderService } from './lib/services/render.service';
 export { InputService } from './lib/services/input.service';
 export type { VTKeyEvent } from './lib/services/input.service';
@@ -51,20 +77,66 @@ export { ClickService, provideClickService, hitTestClickable } from './lib/servi
 export type { ClickableElement } from './lib/services/click.service';
 export { WheelService, provideWheelService } from './lib/services/wheel.service';
 export type { WheelableElement } from './lib/services/wheel.service';
-export { SelectionService, provideSelectionService, normalizeRegion } from './lib/services/selection.service';
-export { DragService, provideDragService, DraggableDirective, DropZoneDirective } from './lib/services/drag.service';
+export { HoverService, provideHoverService } from './lib/services/hover.service';
+export type { HoverableElement } from './lib/services/hover.service';
+export { HoverableDirective } from './lib/components/hoverable/hoverable.directive';
+export {
+  parseKittyKey,
+  matchKittyKeySequence,
+  matchKittyQueryResponse,
+  kittyQueryFlags,
+  KITTY_PUSH,
+  KITTY_POP,
+  KITTY_QUERY,
+} from './lib/services/kitty-keyboard';
+export {
+  SelectionService,
+  provideSelectionService,
+  normalizeRegion,
+  SELECTION_OPTIONS,
+} from './lib/services/selection.service';
+export type { SelectionOptions } from './lib/services/selection.service';
+export {
+  DragService,
+  provideDragService,
+  DraggableDirective,
+  DropZoneDirective,
+} from './lib/services/drag.service';
 export type { DraggableElement, DropZoneElement, DragEndEvent } from './lib/services/drag.service';
 export { SessionRecorder, provideSessionRecorder } from './lib/services/session-recorder.service';
 export { PersistenceService, providePersistence } from './lib/services/persistence.service';
 export { ScreenBuffer, emptyCell, cellsEqual } from './lib/output/screen-buffer';
 export type { Cell, CellRegion } from './lib/output/screen-buffer';
 export { fuzzyMatch, fuzzyRank } from './lib/utils/fuzzy';
+export { UndoStack } from './lib/utils/undo-stack';
+export { hasRtl, flipRtlRuns } from './lib/utils/rtl';
+export { parseMarkdown, markdownCodeLanguage } from './lib/utils/markdown';
+export type { MarkdownLine, MarkdownSegment } from './lib/utils/markdown';
+export { highlightCode } from './lib/utils/highlight';
+export type { HighlightToken } from './lib/utils/highlight';
+export { MarkdownComponent } from './lib/components/markdown/markdown.component';
+export { diffLines } from './lib/utils/diff';
+export type { DiffLine, DiffLineType } from './lib/utils/diff';
+export { DiffComponent } from './lib/components/diff/diff.component';
+export { SkeletonComponent } from './lib/components/skeleton/skeleton.component';
+export { ChartComponent } from './lib/components/chart/chart.component';
+export type { ChartKind } from './lib/components/chart/chart.component';
 export { vimTranslate, VIM_NAVIGATION } from './lib/keymaps/vim.presets';
-export { TerminalErrorHandler, provideTerminalErrorHandler } from './lib/services/terminal-error-handler';
-export { CommandPaletteService, provideCommandPalette } from './lib/services/command-palette.service';
+export {
+  TerminalErrorHandler,
+  provideTerminalErrorHandler,
+} from './lib/services/terminal-error-handler';
+export {
+  CommandPaletteService,
+  provideCommandPalette,
+} from './lib/services/command-palette.service';
+export { DevtoolsService, provideDevtools } from './lib/services/devtools.service';
+export { DevtoolsComponent } from './lib/components/devtools/devtools.component';
 export { PaletteComponent } from './lib/components/palette/palette.component';
 export type { PaletteCommand } from './lib/components/palette/palette.component';
 export { SplitViewComponent } from './lib/components/split-view/split-view.component';
+export { WindowComponent } from './lib/components/window/window.component';
+export type { WindowBounds } from './lib/components/window/window.component';
 export { BadgeComponent } from './lib/components/badge/badge.component';
 export type { BadgeVariant } from './lib/components/badge/badge.component';
 export { StatusBarComponent } from './lib/components/statusbar/statusbar.component';
@@ -107,6 +179,7 @@ export { VtTypographyDirective } from './lib/directives/typography.directive';
 
 // Components
 export { BoxComponent } from './lib/components/box/box.component';
+export { GridComponent } from './lib/components/grid/grid.component';
 export { TextComponent } from './lib/components/text/text.component';
 export { NewlineComponent } from './lib/components/newline/newline.component';
 export { SpacerComponent } from './lib/components/spacer/spacer.component';
@@ -144,8 +217,20 @@ export type { MenuItem } from './lib/components/menu/menu.component';
 // Forms
 export { FormComponent, FormFieldComponent } from './lib/forms/form.component';
 export type { FormControl } from './lib/forms/form.component';
-export { compose, required, minLength, maxLength, pattern, email, min, max, equals } from './lib/forms/validators';
-export type { ValidatorFn } from './lib/forms/validators';
+export {
+  compose,
+  composeAsync,
+  debouncedAsync,
+  required,
+  minLength,
+  maxLength,
+  pattern,
+  email,
+  min,
+  max,
+  equals,
+} from './lib/forms/validators';
+export type { ValidatorFn, AsyncValidatorFn } from './lib/forms/validators';
 
 // Overlay (CDK)
 export { OverlayContainer } from './lib/overlay/overlay-container';

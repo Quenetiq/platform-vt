@@ -1,4 +1,10 @@
-import { Injectable, inject, makeEnvironmentProviders, signal, type EnvironmentProviders } from '@angular/core';
+import {
+  Injectable,
+  inject,
+  makeEnvironmentProviders,
+  signal,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { nodeFs } from '../utils/node';
 import { TerminalService } from './terminal.service';
 

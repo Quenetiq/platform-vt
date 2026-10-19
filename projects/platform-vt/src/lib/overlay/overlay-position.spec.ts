@@ -64,10 +64,10 @@ describe('computeOverlayPosition', () => {
   });
 
   it('flips bottom to top when the panel would overflow the bottom edge', () => {
-    const result = computeOverlayPosition(
-      anchor({ x: 5, y: 20, width: 10, height: 3 }, 'bottom'),
-      { ...PANEL, ...VIEWPORT },
-    );
+    const result = computeOverlayPosition(anchor({ x: 5, y: 20, width: 10, height: 3 }, 'bottom'), {
+      ...PANEL,
+      ...VIEWPORT,
+    });
     // bottom: y = 23 → panel bottom 26 > 24 → flip to top: y = 20 - 3 = 17.
     expect(result).toEqual({ x: 5, y: 17 });
   });
@@ -82,10 +82,10 @@ describe('computeOverlayPosition', () => {
   });
 
   it('flips right to left when the panel would overflow the right edge', () => {
-    const result = computeOverlayPosition(
-      anchor({ x: 74, y: 2, width: 10, height: 3 }, 'right'),
-      { ...PANEL, ...VIEWPORT },
-    );
+    const result = computeOverlayPosition(anchor({ x: 74, y: 2, width: 10, height: 3 }, 'right'), {
+      ...PANEL,
+      ...VIEWPORT,
+    });
     // right: x = 84 → panel right 93 > 80 → flip to left: x = 74 - 9 = 65.
     expect(result).toEqual({ x: 65, y: 2 });
   });
@@ -101,10 +101,10 @@ describe('computeOverlayPosition', () => {
 
   it('clamps a fixed position that still overflows after flipping', () => {
     // Anchor touches both edges; neither flip helps, so clamp wins.
-    const result = computeOverlayPosition(
-      anchor({ x: 0, y: 22, width: 80, height: 2 }, 'bottom'),
-      { ...PANEL, ...VIEWPORT },
-    );
+    const result = computeOverlayPosition(anchor({ x: 0, y: 22, width: 80, height: 2 }, 'bottom'), {
+      ...PANEL,
+      ...VIEWPORT,
+    });
     // bottom: y = 24 → overflow → flip top: y = 22 - 3 = 19 → fits.
     expect(result).toEqual({ x: 0, y: 19 });
   });

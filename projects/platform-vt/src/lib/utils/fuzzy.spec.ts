@@ -42,7 +42,11 @@ describe('fuzzyRank', () => {
   });
 
   it('respects the limit', () => {
-    const ranked = fuzzyRank('a', ['aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak'], 5);
+    const ranked = fuzzyRank(
+      'a',
+      ['aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak'],
+      5,
+    );
     expect(ranked.length).toBe(5);
   });
 

@@ -1,5 +1,11 @@
 import { Injectable, signal } from '@angular/core';
-import { mode } from '../output/ansi';
+import {
+  cursor,
+  mode,
+  osc,
+  type CursorShape,
+  type TerminalProgressState,
+} from '../output/ansi';
 
 /**
  * Color depth the terminal supports.
@@ -42,7 +48,18 @@ export function detectCapabilities(): TerminalCapabilities {
   } else if (term.includes('256color') || term.includes('256')) {
     colors = 256;
   } else if (
-    ['iTerm.app', 'WezTerm', 'vscode', 'warp', 'ghostty', 'tabby', 'hyper', 'alacritty', 'mintty', 'rio'].includes(termProgram) ||
+    [
+      'iTerm.app',
+      'WezTerm',
+      'vscode',
+      'warp',
+      'ghostty',
+      'tabby',
+      'hyper',
+      'alacritty',
+      'mintty',
+      'rio',
+    ].includes(termProgram) ||
     /xterm-kitty|foot|contour|wezterm/i.test(term)
   ) {
     colors = 'truecolor';
@@ -112,6 +129,21 @@ export class TerminalService {
   /** Whether bracketed paste reporting is enabled. */
   readonly isBracketedPaste = signal(false);
 
+  /** Current window title (null when the app did not set one). */
+  readonly title = signal<string | null>(null);
+
+  /** Taskbar progress state (OSC 9;4). */
+  readonly progress = signal<{ state: TerminalProgressState; value: number } | null>(null);
+
+  /** Current cursor shape requested by the app. */
+  readonly cursorShape = signal<CursorShape>('default');
+
+  /** Flash timer handle (visual bell). */
+  private flashTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Whether the title was pushed on the terminal's title stack. */
+  private titlePushed = false;
+
   /** Listeners notified after a terminal resize. */
   private readonly resizeListeners = new Set<() => void>();
 
@@ -160,6 +192,119 @@ export class TerminalService {
     this.write('\x1b[2J\x1b[H');
   }
 
+  /**
+   * Set the terminal window/tab title (OSC 2).
+   *
+   * The title is restored to the previous one by {@link cleanup} when it was
+   * saved with {@link pushTitle}.
+   */
+  setTitle(title: string): void {
+    this.title.set(title);
+    this.write(osc.title(title));
+  }
+
+  /** Save the current window title on the terminal's title stack (CSI 22 t). */
+  pushTitle(): void {
+    if (this.titlePushed) return;
+    this.titlePushed = true;
+    this.write(mode.pushTitle());
+  }
+
+  /** Restore the title saved by {@link pushTitle} (CSI 23 t). */
+  restoreTitle(): void {
+    if (!this.titlePushed) return;
+    this.titlePushed = false;
+    this.title.set(null);
+    this.write(mode.popTitle());
+  }
+
+  /** Ring the terminal bell. */
+  bell(): void {
+    this.write('\x07');
+  }
+
+  /**
+   * Flash the screen (visual bell).
+   *
+   * Uses the terminal's reverse-video flash mode (`CSI ?5h`), automatically
+   * disabling it after `durationMs`. Unsupported terminals ignore it.
+   */
+  flash(durationMs = 120): void {
+    this.write(mode.flash());
+    if (this.flashTimer) clearTimeout(this.flashTimer);
+    this.flashTimer = setTimeout(() => {
+      this.flashTimer = null;
+      this.write(mode.exitFlash());
+    }, Math.max(0, durationMs));
+  }
+
+  /**
+   * Show a desktop notification (OSC 9).
+   *
+   * @param body - Notification text.
+   * @param title - Optional title prepended to the body.
+   */
+  notify(body: string, title?: string): void {
+    this.write(osc.notification(body, title));
+  }
+
+  /**
+   * Report taskbar progress (OSC 9;4).
+   *
+   * @param state - `'remove'`, `'normal'`, `'error'`, `'indeterminate'` or
+   * `'warning'`.
+   * @param value - Percentage (0-100) for percentage states.
+   */
+  setProgress(state: TerminalProgressState, value = 0): void {
+    const percent = Math.max(0, Math.min(100, Math.round(value)));
+    this.progress.set(state === 'remove' ? null : { state, value: percent });
+    this.write(osc.progress(state, percent));
+  }
+
+  /** Clear the taskbar progress indicator. */
+  clearProgress(): void {
+    if (this.progress() === null) return;
+    this.progress.set(null);
+    this.write(osc.progress('remove'));
+  }
+
+  /**
+   * Set the cursor shape/blink (DECSCUSR).
+   *
+   * @param style - `'default'`, `'block'`, `'underline'` or `'bar'`.
+   * @param blink - Whether the cursor blinks.
+   */
+  setCursorStyle(style: CursorShape, blink = true): void {
+    this.cursorShape.set(style);
+    this.write(cursor.shape(style, blink));
+  }
+
+  /** Mark the start of a prompt (OSC 133;A) for shell integration. */
+  markPromptStart(): void {
+    this.write('\x1b]133;A\x1b\\');
+  }
+
+  /** Mark the start of a command (OSC 133;B) for shell integration. */
+  markCommandStart(): void {
+    this.write('\x1b]133;B\x1b\\');
+  }
+
+  /** Mark the start of command output (OSC 133;C) for shell integration. */
+  markCommandOutputStart(): void {
+    this.write('\x1b]133;C\x1b\\');
+  }
+
+  /**
+   * Mark the end of a command (OSC 133;D) for shell integration.
+   *
+   * Terminals with shell integration (kitty, wezterm, tmux with
+   * `terminal-overrides`, iTerm2) use these markers to navigate the
+   * scrollback by prompt/output. The exit status is included when nonzero.
+   */
+  markCommandEnd(status = 0): void {
+    this.write(`\x1b]133;D${status ? `;status=${String(status)}` : ''}\x1b\\`);
+  }
+
   /** Switch to the alternative screen buffer (idempotent). */
   enterAltScreen(): void {
     if (this.isAltScreen()) return;
@@ -168,11 +313,78 @@ export class TerminalService {
     this.clear();
   }
 
+  /** Whether synchronized output is active. */
+  readonly isSynchronizedOutput = signal(false);
+
+  /**
+   * Enable synchronized output (`CSI ?2026h`): the terminal holds screen
+   * updates until the matching end sequence, painting one frame instead of
+   * a flickery sequence of partial redraws. Unsupported terminals ignore
+   * the sequence safely.
+   */
+  enableSynchronizedOutput(): void {
+    if (this.isSynchronizedOutput()) return;
+    this.isSynchronizedOutput.set(true);
+    this.write('\x1b[?2026h');
+  }
+
+  /** Disable synchronized output (`CSI ?2026l`). */
+  disableSynchronizedOutput(): void {
+    if (!this.isSynchronizedOutput()) return;
+    this.isSynchronizedOutput.set(false);
+    this.write('\x1b[?2026l');
+  }
+
+  /**
+   * Run a function with screen updates batched into a single frame.
+   *
+   * Emits the synchronized-output begin/end sequences around the call, so a
+   * full render pass (layout, diff, flush) is painted atomically.
+   */
+  synchronized<T>(fn: () => T): T {
+    const active = this.isSynchronizedOutput();
+    if (active) this.beginSynchronizedOutputWrite();
+    try {
+      return fn();
+    } finally {
+      if (active) this.endSynchronizedOutputWrite();
+    }
+  }
+
+  private beginSynchronizedOutputWrite(): void {
+    this.write('\x1b[?2026h');
+  }
+
+  private endSynchronizedOutputWrite(): void {
+    this.write('\x1b[?2026l');
+  }
+
   /** Return to the normal screen buffer (idempotent). */
   exitAltScreen(): void {
     if (!this.isAltScreen()) return;
     this.isAltScreen.set(false);
     this.write(mode.exitAltScreen());
+  }
+
+  /** Whether focus reporting (`CSI ?1004h`) is active. */
+  readonly isFocusReporting = signal(false);
+
+  /**
+   * Enable focus reporting: the terminal sends `CSI I` when it gains focus
+   * and `CSI O` when it loses it. Handled by {@link InputService} into the
+   * `focusEvents` stream.
+   */
+  enableFocusReporting(): void {
+    if (this.isFocusReporting()) return;
+    this.isFocusReporting.set(true);
+    this.write('\x1b[?1004h');
+  }
+
+  /** Disable focus reporting (`CSI ?1004l`). */
+  disableFocusReporting(): void {
+    if (!this.isFocusReporting()) return;
+    this.isFocusReporting.set(false);
+    this.write('\x1b[?1004l');
   }
 
   /** Enable raw mode on stdin (no line buffering, no echo). */
@@ -210,6 +422,16 @@ export class TerminalService {
     this.exitAltScreen();
     this.disableBracketedPaste();
     this.setRawMode(false);
+    this.clearProgress();
+    if (this.cursorShape() !== 'default') {
+      this.setCursorStyle('default');
+    }
+    if (this.flashTimer) {
+      clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+      this.write(mode.exitFlash());
+    }
+    this.restoreTitle();
     this.write('\x1b[?25h');
     try {
       if (typeof process !== 'undefined' && process.stdin) {

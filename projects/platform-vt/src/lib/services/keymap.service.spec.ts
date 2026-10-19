@@ -80,9 +80,13 @@ describe('KeymapService', () => {
     const keys = TestBed.inject(KeymapService);
     let gate = false;
     const calls: string[] = [];
-    keys.bind('x', () => {
-      calls.push('x');
-    }, { when: () => gate });
+    keys.bind(
+      'x',
+      () => {
+        calls.push('x');
+      },
+      { when: () => gate },
+    );
 
     input.simulateKey({ name: 'x', ctrl: false, meta: false, shift: false, sequence: 'x' });
     expect(calls).toEqual([]);

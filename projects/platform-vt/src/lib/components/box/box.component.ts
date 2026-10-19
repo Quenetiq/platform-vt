@@ -35,7 +35,10 @@ import { VtAppearanceDirective } from '../../directives/appearance.directive';
       directive: VtBorderDirective,
       inputs: ['border', 'borderLeft', 'borderRadius'],
     },
-    { directive: VtAppearanceDirective, inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'] },
+    {
+      directive: VtAppearanceDirective,
+      inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'],
+    },
   ],
 })
 export class BoxComponent {}

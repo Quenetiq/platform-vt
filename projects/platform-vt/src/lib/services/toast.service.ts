@@ -1,4 +1,12 @@
-import { DestroyRef, Injectable, inject, makeEnvironmentProviders, signal, effect, type EnvironmentProviders } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  makeEnvironmentProviders,
+  signal,
+  effect,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { RenderService } from './render.service';
 import { TerminalService } from './terminal.service';
 

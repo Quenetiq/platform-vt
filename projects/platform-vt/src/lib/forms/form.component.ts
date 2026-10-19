@@ -1,9 +1,20 @@
-import { Component, computed, contentChildren, inject, input, output, signal, effect, ElementRef } from '@angular/core';
+import {
+  Component,
+  computed,
+  contentChildren,
+  DestroyRef,
+  inject,
+  input,
+  output,
+  signal,
+  effect,
+  ElementRef,
+} from '@angular/core';
 import { RenderService } from '../services/render.service';
 import { InputComponent } from '../components/input/input.component';
 import { TextAreaComponent } from '../components/textarea/textarea.component';
 import { SelectComponent } from '../components/select/select.component';
-import type { ValidatorFn } from './validators';
+import type { AsyncValidatorFn, ValidatorFn } from './validators';
 import { STYLE_READER, type VTStyleReader } from '../styles/style-registry';
 
 /** Any of the control components a form field can wrap. */
@@ -33,6 +44,7 @@ export class FormFieldComponent {
   private readonly elementRef = inject(ElementRef);
   private readonly renderService = inject(RenderService);
   private readonly styleReader = inject(STYLE_READER) as VTStyleReader;
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Field name, used in `FormComponent.values()`. */
   readonly name = input.required<string>();
@@ -43,11 +55,23 @@ export class FormFieldComponent {
   /** Validators applied to the control's current value. */
   readonly validators = input<ValidatorFn[]>([]);
 
+  /** Asynchronous validators (run after the sync ones pass). */
+  readonly asyncValidators = input<AsyncValidatorFn[]>([]);
+
+  /** Debounce delay for async validators (default 300ms). */
+  readonly asyncDebounceMs = input<number>(300);
+
   /** Current error message, or null when the field is valid. */
   readonly error = signal<string | null>(null);
 
   /** Whether the field has been edited at least once. */
   readonly touched = signal(false);
+
+  /** Whether the value changed since the last reset. */
+  readonly dirty = signal(false);
+
+  /** Whether async validation is in flight. */
+  readonly pending = signal(false);
 
   /** Whether the field currently fails validation. */
   readonly invalid = computed(() => this.error() !== null);
@@ -87,7 +111,10 @@ export class FormFieldComponent {
       }
 
       const error = this.error();
-      if (error && this.touched()) {
+      if (this.pending()) {
+        el.setAttribute('border-left', 'thick');
+        el.setAttribute('color', 'yellow');
+      } else if (error && this.touched()) {
         el.setAttribute('border-left', 'thick');
         el.setAttribute('color', 'red');
       } else {
@@ -97,6 +124,10 @@ export class FormFieldComponent {
       }
       this.renderService.scheduleRender();
     });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.validationTimer) clearTimeout(this.validationTimer);
+    });
   }
 
   private listenControl(control: FormControl): void {
@@ -104,41 +135,111 @@ export class FormFieldComponent {
     this.subscribed.add(control);
 
     const onValue = (value: unknown): void => {
-      const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+      const text =
+        typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
       this.value.set(text);
       this.touched.set(true);
-      this.validate(text);
+      this.dirty.set(true);
+      void this.validate(text);
     };
 
     if (control instanceof InputComponent || control instanceof TextAreaComponent) {
       control.valueChange.subscribe(onValue);
     } else if (control instanceof SelectComponent) {
       control.valueChange.subscribe((value) => onValue(value));
+      control.selectionChange.subscribe(() => onValue(control.selectedLabels().join(', ')));
     }
   }
 
-  private validate(value: string): void {
+  private validate(value: string): Promise<void> {
+    const token = ++this.validationToken;
+    if (this.validationTimer) {
+      clearTimeout(this.validationTimer);
+      this.validationTimer = null;
+    }
+    this.pending.set(false);
+
     for (const validator of this.validators()) {
       const error = validator(value);
       if (error !== null) {
         this.error.set(error);
         this.renderService.scheduleRender();
-        return;
+        return Promise.resolve();
       }
     }
-    if (this.error() !== null) {
-      this.error.set(null);
-      this.renderService.scheduleRender();
+
+    const asyncValidators = this.asyncValidators();
+    if (asyncValidators.length === 0) {
+      if (this.error() !== null) {
+        this.error.set(null);
+        this.renderService.scheduleRender();
+      }
+      this.validated = Promise.resolve();
+      return this.validated;
     }
+
+    this.pending.set(true);
+    this.renderService.scheduleRender();
+
+    this.validated = new Promise<void>((resolve) => {
+      this.validationTimer = setTimeout(() => {
+        this.validationTimer = null;
+        void (async (): Promise<void> => {
+          let error: string | null = null;
+          try {
+            for (const validator of asyncValidators) {
+              const result = await validator(value);
+              if (result !== null) {
+                error = result;
+                break;
+              }
+            }
+          } catch {
+            error = 'Validation failed';
+          }
+          if (token !== this.validationToken) {
+            resolve();
+            return;
+          }
+          this.pending.set(false);
+          this.error.set(error);
+          this.renderService.scheduleRender();
+          resolve();
+        })();
+      }, Math.max(0, this.asyncDebounceMs()));
+    });
+    return this.validated;
   }
 
-  /** Mark the field as touched (used by {@link FormComponent.submit}). */
-  markTouched(): void {
+  /** Mark the field as touched and validate its current value. */
+  markTouched(): Promise<void> {
     this.touched.set(true);
-    this.validate(this.value());
+    return this.validate(this.value());
+  }
+
+  /** Clear validation state and dirty/touched flags (value is untouched). */
+  reset(): void {
+    this.validationToken++;
+    if (this.validationTimer) {
+      clearTimeout(this.validationTimer);
+      this.validationTimer = null;
+    }
+    this.pending.set(false);
+    this.error.set(null);
+    this.touched.set(false);
+    this.dirty.set(false);
+    this.renderService.scheduleRender();
+  }
+
+  /** Resolve when the current (possibly async) validation finishes. */
+  waitUntilValidated(): Promise<void> {
+    return this.validated;
   }
 
   private readonly subscribed = new Set<unknown>();
+  private validationToken = 0;
+  private validationTimer: ReturnType<typeof setTimeout> | null = null;
+  private validated: Promise<void> = Promise.resolve();
 }
 
 /**
@@ -170,6 +271,12 @@ export class FormComponent {
   /** Whether every nested field is currently valid. */
   readonly valid = computed(() => this.fields().every((field) => !field.invalid()));
 
+  /** Whether any field is dirty (edited since the last reset). */
+  readonly dirty = computed(() => this.fields().some((field) => field.dirty()));
+
+  /** Whether any field has async validation in flight. */
+  readonly pending = computed(() => this.fields().some((field) => field.pending()));
+
   /** Emitted when `submit()` is called and all fields are valid. */
   readonly submitted = output<Record<string, string>>();
 
@@ -187,10 +294,40 @@ export class FormComponent {
   submit(): void {
     const values = this.values();
     for (const field of this.fields()) {
-      field.markTouched();
+      void field.markTouched();
     }
-    if (this.valid()) {
+    if (this.valid() && !this.pending()) {
       this.submitted.emit(values);
+    }
+  }
+
+  /**
+   * Validate all fields (including async validators) and emit `submitted`
+   * when every field is valid.
+   *
+   * @returns Whether the form is valid and was submitted.
+   */
+  async submitAsync(): Promise<boolean> {
+    const values = this.values();
+    await Promise.all(this.fields().map((field) => field.markTouched()));
+    if (this.valid() && !this.pending()) {
+      this.submitted.emit(values);
+      return true;
+    }
+    return false;
+  }
+
+  /** Mark every field as touched and validate it. */
+  markAllAsTouched(): void {
+    for (const field of this.fields()) {
+      void field.markTouched();
+    }
+  }
+
+  /** Clear validation state, dirty and touched flags on every field. */
+  reset(): void {
+    for (const field of this.fields()) {
+      field.reset();
     }
   }
 

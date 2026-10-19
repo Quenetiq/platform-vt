@@ -1,12 +1,21 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
 import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A numeric slider rendered as `──●────` with a draggable knob.
@@ -41,7 +50,7 @@ export class SliderComponent {
   readonly valueChange = output<number>();
   readonly isFocused = signal(false);
 
-  private readonly id = `vt-slider-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-slider')();
   private readonly inputService = inject(InputService);
 
   constructor() {
@@ -59,7 +68,9 @@ export class SliderComponent {
       const ratio = (value - min) / (max - min);
       const knob = Math.round(ratio * (width - 1));
 
-      const parts = Array.from({ length: width }, (_, i) => (i === knob ? '\u25CF' : i < knob ? '\u2501' : '\u2500'));
+      const parts = Array.from({ length: width }, (_, i) =>
+        i === knob ? '\u25CF' : i < knob ? '\u2501' : '\u2500',
+      );
       let text = parts.join('');
       if (this.label().length > 0) text = `${this.label()} ${text} ${value}`;
 

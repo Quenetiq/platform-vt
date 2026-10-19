@@ -1,4 +1,15 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef, type OnDestroy } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+  type OnDestroy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
@@ -6,8 +17,8 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
-
-let nextId = 0;
+import { UndoStack } from '../../utils/undo-stack';
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A multiline text input rendered as a fixed-height text area.
@@ -16,6 +27,13 @@ let nextId = 0;
  * editing. `return` inserts a newline; `ctrl-return` or `alt-enter`
  * submits. The caret is drawn as an inverted block at the cursor position
  * while focused.
+ *
+ * With `[vim]="true"` the textarea starts in normal mode: `h`/`j`/`k`/`l`
+ * move the cursor, `0`/`$` jump to the line start/end, `w`/`b` move by
+ * words, `x` deletes a character, `dd` deletes a line, `i`/`a`/`I`/`A`
+ * enter insert mode (at/before/line start/line end), `o`/`O` open a new
+ * line below/above, and `escape` returns to normal mode. `vimMode` exposes
+ * the current mode for status displays.
  *
  * @example
  * ```html
@@ -41,15 +59,38 @@ export class TextAreaComponent implements OnDestroy {
   readonly maxLength = input<number>(9999);
   readonly autofocus = input<boolean>(false);
   readonly flexGrow = input<number>(0);
+  /** Enable vim-style editing (normal/insert modes). */
+  readonly vim = input<boolean>(false);
 
   readonly valueChange = output<string>();
   readonly submitted = output<string>();
 
-  private readonly id = `vt-textarea-${String(nextId++)}`;
+  /** Current vim mode when `vim` is enabled (`'normal'` | `'insert'`). */
+  readonly vimMode = signal<'normal' | 'insert'>('normal');
+
+  private readonly id = createIdGenerator('vt-textarea')();
   private readonly cursorRow = signal(0);
   private readonly cursorCol = signal(0);
   private localValue = signal('');
   private readonly isFocused = signal(false);
+
+  /** Pending `d` press in vim normal mode (for the `dd` chord). */
+  private pendingD = false;
+
+  /** Extra (multi) cursors beyond the primary one, e.g. via Ctrl+Alt+Up/Down. */
+  readonly extraCursors = signal<Array<{ row: number; col: number }>>([]);
+
+  /** Maximum number of cursors (primary + extras). */
+  readonly maxCursors = input<number>(8);
+
+  /** Edit history; Ctrl+Z / Ctrl+Y (or `u` in vim normal mode) step through it. */
+  private readonly undoStack = new UndoStack();
+
+  /** Whether an undo step is available (for status displays). */
+  readonly canUndo = signal(false);
+
+  /** Whether a redo step is available (for status displays). */
+  readonly canRedo = signal(false);
 
   constructor() {
     this.focusService.register({
@@ -114,7 +155,8 @@ export class TextAreaComponent implements OnDestroy {
       }
 
       const focused = this.isFocused();
-      const shownLines = lines.length === 0 ? (placeholder.length > 0 && !focused ? [placeholder] : ['']) : lines;
+      const shownLines =
+        lines.length === 0 ? (placeholder.length > 0 && !focused ? [placeholder] : ['']) : lines;
       while (el.children.length < shownLines.length) {
         const span = document.createElement('vt-textarea-line');
         span.setAttribute('display', 'flex');
@@ -127,19 +169,27 @@ export class TextAreaComponent implements OnDestroy {
         el.lastElementChild?.remove();
       }
 
-      const caretRow = Math.min(this.cursorRow(), Math.max(0, shownLines.length - 1));
       for (let i = 0; i < shownLines.length; i++) {
         const rowEl = el.children[i] as HTMLElement;
         const line = shownLines[i] ?? '';
         const isPlaceholder = line === placeholder && !focused;
         let children: { text: string; inverse?: boolean; color?: string }[];
-        if (focused && i === caretRow) {
-          const col = Math.min(this.cursorCol(), line.length);
-          children = [
-            { text: line.substring(0, col), color },
-            { text: col < line.length ? line[col]! : ' ', inverse: true, color },
-            { text: line.substring(col + (col < line.length ? 1 : 0)), color },
-          ];
+        const carets = this.caretsOnRow(i, line.length, focused);
+        if (carets.length > 0) {
+          children = [];
+          let prev = 0;
+          for (const caret of carets) {
+            if (caret.col < prev) continue;
+            if (caret.col > prev) children.push({ text: line.substring(prev, caret.col), color });
+            children.push({
+              text: caret.col < line.length ? line[caret.col]! : ' ',
+              inverse: true,
+              color,
+            });
+            prev = caret.col + 1;
+          }
+          if (prev < line.length) children.push({ text: line.substring(prev), color });
+          if (children.length === 0) children = [{ text: line, color: isPlaceholder ? '' : color }];
         } else {
           children = [{ text: line, color: isPlaceholder ? '' : color }];
         }
@@ -177,7 +227,42 @@ export class TextAreaComponent implements OnDestroy {
     return value.split('\n');
   }
 
-  private handleKey(event: { name: string; ctrl: boolean; meta: boolean; sequence: string }): void {
+  private handleKey(event: {
+    name: string;
+    ctrl: boolean;
+    meta: boolean;
+    shift: boolean;
+    sequence: string;
+  }): void {
+    // Ctrl+Alt+Up/Down toggles an extra cursor on the row above/below.
+    if (event.ctrl && event.meta && (event.name === 'up' || event.name === 'down')) {
+      this.toggleExtraCursor(event.name === 'up' ? -1 : 1);
+      return;
+    }
+
+    if (this.vim()) {
+      if (this.vimMode() === 'normal') {
+        if (this.handleNormalModeKey(event)) return;
+      } else if (event.name === 'escape') {
+        this.vimMode.set('normal');
+        this.pendingD = false;
+        this.renderService.scheduleRender();
+        return;
+      }
+    }
+
+    if (event.name === 'z' && event.ctrl && !event.shift) {
+      this.undoEdit();
+      return;
+    }
+    if (
+      (event.name === 'y' && event.ctrl && !event.shift) ||
+      (event.name === 'z' && event.ctrl && event.shift)
+    ) {
+      this.redoEdit();
+      return;
+    }
+
     const lines = this.localValue().split('\n');
     const row = this.cursorRow();
     const col = this.cursorCol();
@@ -232,7 +317,311 @@ export class TextAreaComponent implements OnDestroy {
     }
   }
 
+  /**
+   * Handle a key in vim normal mode.
+   *
+   * @returns Whether the key was consumed by normal-mode handling.
+   */
+  private handleNormalModeKey(event: {
+    name: string;
+    ctrl: boolean;
+    meta: boolean;
+    shift: boolean;
+    sequence: string;
+  }): boolean {
+    const lines = this.localValue().split('\n');
+    const row = this.cursorRow();
+    const col = this.cursorCol();
+
+    const set = (r: number, c: number): void => {
+      const rr = Math.max(0, Math.min(r, lines.length - 1));
+      this.cursorRow.set(rr);
+      this.cursorCol.set(Math.max(0, Math.min(c, lines[rr]?.length ?? 0)));
+    };
+    const enterInsert = (c: number): void => {
+      this.cursorCol.set(Math.max(0, Math.min(c, lines[this.cursorRow()]?.length ?? 0)));
+      this.vimMode.set('insert');
+      this.renderService.scheduleRender();
+    };
+
+    switch (event.name) {
+      case 'h':
+        if (col > 0) set(row, col - 1);
+        else if (row > 0) set(row - 1, (lines[row - 1] ?? '').length);
+        break;
+      case 'l':
+        if (col < (lines[row]?.length ?? 0)) set(row, col + 1);
+        else if (row < lines.length - 1) set(row + 1, 0);
+        break;
+      case 'j':
+      case 'return':
+        set(row + 1, col);
+        break;
+      case 'k':
+        set(row - 1, col);
+        break;
+      case '0':
+      case 'home':
+        set(row, 0);
+        break;
+      case '$':
+      case 'end':
+        set(row, (lines[row] ?? '').length);
+        break;
+      case 'w':
+        this.wordMove(1);
+        break;
+      case 'b':
+        this.wordMove(-1);
+        break;
+      case 'x':
+      case 'delete':
+        this.deleteForward();
+        break;
+      case 'd':
+        if (this.pendingD) {
+          this.pendingD = false;
+          this.deleteLine();
+        } else {
+          this.pendingD = true;
+        }
+        break;
+      case 'u':
+        this.undoEdit();
+        break;
+      case 'i':
+        enterInsert(col);
+        break;
+      case 'a':
+        enterInsert(col + 1);
+        break;
+      case 'I':
+        enterInsert(0);
+        break;
+      case 'A':
+        enterInsert((lines[row] ?? '').length);
+        break;
+      case 'o':
+        this.openLineBelow();
+        break;
+      case 'O':
+        this.openLineAbove();
+        break;
+      default:
+        this.pendingD = false;
+        break;
+    }
+    this.renderService.scheduleRender();
+    return true;
+  }
+
+  /** Move the cursor to the next/previous word boundary in normal mode. */
+  private wordMove(direction: 1 | -1): void {
+    const lines = this.localValue().split('\n');
+    const row = this.cursorRow();
+    const col = this.cursorCol();
+    const line = lines[row] ?? '';
+    const length = line.length;
+    const set = (r: number, c: number): void => {
+      const rr = Math.max(0, Math.min(r, lines.length - 1));
+      this.cursorRow.set(rr);
+      this.cursorCol.set(Math.max(0, Math.min(c, lines[rr]?.length ?? 0)));
+    };
+
+    if (direction === 1) {
+      let i = col;
+      while (i < length && line[i] !== ' ') i++;
+      while (i < length && line[i] === ' ') i++;
+      if (i >= length && row < lines.length - 1) set(row + 1, 0);
+      else set(row, i);
+    } else {
+      let i = col;
+      while (i > 0 && line[i - 1] === ' ') i--;
+      while (i > 0 && line[i - 1] !== ' ') i--;
+      if (i <= 0 && row > 0) set(row - 1, (lines[row - 1] ?? '').length);
+      else set(row, i);
+    }
+  }
+
+  /** `dd` — delete the current line (or clear it when it is the only one). */
+  private deleteLine(): void {
+    this.undoStack.snapshot(this.localValue());
+    const lines = this.localValue().split('\n');
+    const row = this.cursorRow();
+    if (lines.length === 1) {
+      this.localValue.set('');
+      this.cursorRow.set(0);
+      this.cursorCol.set(0);
+    } else {
+      lines.splice(row, 1);
+      const rr = Math.min(row, lines.length - 1);
+      this.localValue.set(lines.join('\n'));
+      this.cursorRow.set(rr);
+      this.cursorCol.set(Math.min(this.cursorCol(), lines[rr]?.length ?? 0));
+    }
+    this.valueChange.emit(this.localValue());
+  }
+
+  /** `o` — open a new line below the cursor and enter insert mode. */
+  private openLineBelow(): void {
+    const lines = this.localValue().split('\n');
+    const row = this.cursorRow();
+    this.cursorCol.set((lines[row] ?? '').length);
+    this.insertAt('\n');
+    this.vimMode.set('insert');
+  }
+
+  /** `O` — open a new line above the cursor and enter insert mode. */
+  private openLineAbove(): void {
+    const row = this.cursorRow();
+    this.cursorCol.set(0);
+    this.insertAt('\n');
+    this.cursorRow.set(Math.max(0, row));
+    this.cursorCol.set(0);
+    this.vimMode.set('insert');
+  }
+
+  private undoEdit(): void {
+    const previous = this.undoStack.undo(this.localValue());
+    if (previous === null) return;
+    this.localValue.set(previous);
+    const lines = previous.split('\n');
+    this.cursorRow.set(lines.length - 1);
+    this.cursorCol.set((lines[lines.length - 1] ?? '').length);
+    this.canUndo.set(this.undoStack.canUndo);
+    this.canRedo.set(true);
+    this.valueChange.emit(previous);
+    this.renderService.scheduleRender();
+  }
+
+  private redoEdit(): void {
+    const next = this.undoStack.redo(this.localValue());
+    if (next === null) return;
+    this.localValue.set(next);
+    const lines = next.split('\n');
+    this.cursorRow.set(lines.length - 1);
+    this.cursorCol.set((lines[lines.length - 1] ?? '').length);
+    this.canUndo.set(true);
+    this.canRedo.set(this.undoStack.canRedo);
+    this.valueChange.emit(next);
+    this.renderService.scheduleRender();
+  }
+
+  /** The primary cursor plus all extra cursors. */
+  private allCursors(): Array<{ row: number; col: number }> {
+    return [{ row: this.cursorRow(), col: this.cursorCol() }, ...this.extraCursors()];
+  }
+
+  /** Caret positions on a rendered row, sorted by column (primary first). */
+  private caretsOnRow(row: number, lineLength: number, focused: boolean): Array<{ col: number }> {
+    const carets: Array<{ col: number; primary: boolean }> = [];
+    if (focused && row === this.cursorRow()) {
+      carets.push({ col: Math.min(this.cursorCol(), lineLength), primary: true });
+    }
+    for (const extra of this.extraCursors()) {
+      if (extra.row === row) carets.push({ col: Math.min(extra.col, lineLength), primary: false });
+    }
+    carets.sort((a, b) => a.col - b.col || Number(b.primary) - Number(a.primary));
+    return carets.map((c) => ({ col: c.col }));
+  }
+
+  /** Toggle an extra cursor on the row above/below the primary one. */
+  private toggleExtraCursor(direction: 1 | -1): void {
+    const lines = this.localValue().split('\n');
+    const row = this.cursorRow() + direction;
+    if (row < 0 || row >= lines.length) return;
+
+    const extras = this.extraCursors();
+    const extraOnRow = extras.find((c) => c.row === row);
+    if (extraOnRow) {
+      this.extraCursors.set(extras.filter((c) => c !== extraOnRow));
+      return;
+    }
+    if (extras.length >= this.maxCursors() - 1) return;
+    this.extraCursors.set([
+      ...extras,
+      { row, col: Math.min(this.cursorCol(), lines[row]!.length) },
+    ]);
+    this.renderService.scheduleRender();
+  }
+
+  /** Insert a character at every cursor (right-to-left, bottom-to-top). */
+  private multiInsert(char: string): void {
+    const cursors = this.allCursors().sort((a, b) => a.row - b.row || a.col - b.col);
+    const lines = this.localValue().split('\n');
+    for (let i = cursors.length - 1; i >= 0; i--) {
+      const { row, col } = cursors[i]!;
+      const line = lines[row] ?? '';
+      lines[row] = line.substring(0, col) + char + line.substring(col);
+    }
+    this.localValue.set(lines.join('\n'));
+    this.cursorCol.set(this.cursorCol() + 1);
+    this.extraCursors.update((list) => list.map((c) => ({ ...c, col: c.col + 1 })));
+    this.valueChange.emit(this.localValue());
+    this.renderService.scheduleRender();
+  }
+
+  /**
+   * Backspace at every cursor.
+   *
+   * Only characters within a line are removed (a leading cursor is left
+   * untouched; line merging stays a single-cursor operation).
+   */
+  private multiDeleteBackward(): void {
+    const cursors = this.allCursors().sort((a, b) => a.row - b.row || a.col - b.col);
+    const lines = this.localValue().split('\n');
+
+    for (let i = cursors.length - 1; i >= 0; i--) {
+      const { row, col } = cursors[i]!;
+      if (col === 0) continue;
+      const line = lines[row] ?? '';
+      lines[row] = line.substring(0, col - 1) + line.substring(col);
+      // Cursors on the same row to the left of this one shift left.
+      for (let k = i - 1; k >= 0; k--) {
+        const other = cursors[k]!;
+        if (other.row === row && other.col > col) other.col -= 1;
+      }
+    }
+
+    this.localValue.set(lines.join('\n'));
+    if (this.cursorCol() > 0) this.cursorCol.set(this.cursorCol() - 1);
+    this.extraCursors.update((list) => list.map((c) => ({ ...c, col: Math.max(0, c.col - 1) })));
+    this.valueChange.emit(this.localValue());
+    this.renderService.scheduleRender();
+  }
+
+  /**
+   * Delete at every cursor.
+   *
+   * Only characters within a line are removed (an end-of-line cursor is left
+   * untouched; line merging stays a single-cursor operation).
+   */
+  private multiDeleteForward(): void {
+    const cursors = this.allCursors().sort((a, b) => a.row - b.row || a.col - b.col);
+    const lines = this.localValue().split('\n');
+
+    for (let i = cursors.length - 1; i >= 0; i--) {
+      const { row, col } = cursors[i]!;
+      const line = lines[row] ?? '';
+      if (col >= line.length) continue;
+      lines[row] = line.substring(0, col) + line.substring(col + 1);
+      for (let k = i - 1; k >= 0; k--) {
+        const other = cursors[k]!;
+        if (other.row === row && other.col > col) other.col -= 1;
+      }
+    }
+
+    this.localValue.set(lines.join('\n'));
+    this.valueChange.emit(this.localValue());
+    this.renderService.scheduleRender();
+  }
+
   private insertAt(text: string): void {
+    if (this.extraCursors().length > 0 && text !== '\n') {
+      this.multiInsert(text);
+      return;
+    }
+    this.undoStack.snapshot(this.localValue());
     const lines = this.localValue().split('\n');
     const row = this.cursorRow();
     const col = this.cursorCol();
@@ -257,6 +646,11 @@ export class TextAreaComponent implements OnDestroy {
   }
 
   private deleteBackward(): void {
+    if (this.extraCursors().length > 0) {
+      this.multiDeleteBackward();
+      return;
+    }
+    this.undoStack.snapshot(this.localValue());
     const lines = this.localValue().split('\n');
     const row = this.cursorRow();
     const col = this.cursorCol();
@@ -279,6 +673,11 @@ export class TextAreaComponent implements OnDestroy {
   }
 
   private deleteForward(): void {
+    if (this.extraCursors().length > 0) {
+      this.multiDeleteForward();
+      return;
+    }
+    this.undoStack.snapshot(this.localValue());
     const lines = this.localValue().split('\n');
     const row = this.cursorRow();
     const col = this.cursorCol();

@@ -1,4 +1,11 @@
-import { DestroyRef, Injectable, inject, makeEnvironmentProviders, signal, type EnvironmentProviders } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  makeEnvironmentProviders,
+  signal,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../services/input.service';

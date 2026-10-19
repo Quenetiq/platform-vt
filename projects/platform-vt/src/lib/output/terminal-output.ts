@@ -33,9 +33,10 @@ export interface TerminalRenderOptions {
   colorMode?: ColorMode;
 
   /**
-   * A region to render with reverse video (text selection).
+   * Region(s) to render with reverse video (text selection). Accepts a
+   * single region or an array (multi-region selection).
    */
-  selection?: CellRegion | null;
+  selection?: CellRegion | CellRegion[] | null;
 }
 
 /**
@@ -51,9 +52,14 @@ export interface TerminalRenderOptions {
  * wide (CJK/emoji) characters and OSC 8 hyperlinks.
  */
 export class TerminalOutput {
-  private readonly screen = new ScreenBuffer();
+  /** The virtual screen of the last rendered frame (tooling/previews). */
+  get screen(): ScreenBuffer {
+    return this.screenBuffer;
+  }
+
+  private readonly screenBuffer = new ScreenBuffer();
   private colorMode: ColorMode = 'truecolor';
-  private selection: CellRegion | null = null;
+  private selection: CellRegion[] | null = null;
   private framePainted = false;
 
   /**
@@ -64,12 +70,18 @@ export class TerminalOutput {
    * @param rows - Terminal height.
    * @param options - Render options, e.g. skipping the screen clear.
    */
-  render(layoutTree: LayoutNode, columns: number, rows: number, options?: TerminalRenderOptions): void {
+  render(
+    layoutTree: LayoutNode,
+    columns: number,
+    rows: number,
+    options?: TerminalRenderOptions,
+  ): void {
     this.colorMode = options?.colorMode ?? 'truecolor';
-    this.selection = options?.selection ?? null;
+    const selected = options?.selection;
+    this.selection = selected ? (Array.isArray(selected) ? selected : [selected]) : null;
 
     if (options?.clear ?? true) {
-      this.screen.begin(columns, rows);
+      this.screenBuffer.begin(columns, rows);
     }
 
     this.renderNode(layoutTree, '', null);
@@ -93,22 +105,25 @@ export class TerminalOutput {
    */
   flushToBuffer(): string {
     this.framePainted = false;
-    return this.screen.paint(this.colorMode);
+    return this.screenBuffer.paint(this.colorMode);
   }
 
   /**
    * Extract the text of a region from the last painted frame.
    */
   text(region: CellRegion): string {
-    return this.screen.text(region);
+    return this.screenBuffer.text(region);
   }
 
   private paint(x: number, y: number, char: string, cell: Partial<Cell>): void {
     const c: Cell = { ...emptyCell(), ...cell, char };
-    if (this.selection && x >= this.selection.x1 && x <= this.selection.x2 && y >= this.selection.y1 && y <= this.selection.y2) {
+    if (
+      this.selection &&
+      this.selection.some((s) => x >= s.x1 && x <= s.x2 && y >= s.y1 && y <= s.y2)
+    ) {
       c.inverse = true;
     }
-    this.screen.set(x, y, c);
+    this.screenBuffer.set(x, y, c);
   }
 
   private renderNode(node: LayoutNode, inheritedBg = '', clip: ClipRect | null = null): void {
@@ -125,8 +140,7 @@ export class TerminalOutput {
     if (vtNode.type === 'comment') return;
 
     const ownBg = vtNode.styles.get('backgroundColor');
-    const bgColor =
-      typeof ownBg === 'string' && ownBg.length > 0 ? ownBg : inheritedBg;
+    const bgColor = typeof ownBg === 'string' && ownBg.length > 0 ? ownBg : inheritedBg;
 
     // Render background fill (before anything else)
     if (ownBg !== inheritedBg && typeof ownBg === 'string' && ownBg.length > 0) {
@@ -144,10 +158,7 @@ export class TerminalOutput {
     }
 
     // Children of a scroll container are clipped to its viewport box.
-    const childClip =
-      vtNode.styles.get('overflow') === 'scroll'
-        ? { x, y, width, height }
-        : clip;
+    const childClip = vtNode.styles.get('overflow') === 'scroll' ? { x, y, width, height } : clip;
 
     // Render children
     const children = node.children;
@@ -173,8 +184,7 @@ export class TerminalOutput {
       cell.fg = color;
     }
     const bgColor = node.styles.get('backgroundColor');
-    const bg =
-      typeof bgColor === 'string' && bgColor.length > 0 ? bgColor : inheritedBg;
+    const bg = typeof bgColor === 'string' && bgColor.length > 0 ? bgColor : inheritedBg;
     cell.bg = bg;
     if (node.styles.get('fontWeight') === 'bold') cell.bold = true;
     if (node.styles.get('fontStyle') === 'italic') cell.italic = true;
@@ -198,7 +208,8 @@ export class TerminalOutput {
     clip: ClipRect | null,
   ): void {
     const wrap = node.styles.get('wrap') === 'wrap';
-    const lines = wrap && width > 0 ? wrapText(node.textContent, width) : node.textContent.split('\n');
+    const lines =
+      wrap && width > 0 ? wrapText(node.textContent, width) : node.textContent.split('\n');
     const align = String(node.parent?.styles.get('textAlign') ?? 'left');
     const cell = this.styleCell(node, inheritedBg);
 
@@ -370,9 +381,7 @@ export class TerminalOutput {
     }
   }
 
-  private getBorderChars(
-    style: string,
-  ): {
+  private getBorderChars(style: string): {
     topLeft: string;
     topRight: string;
     bottomLeft: string;
@@ -464,11 +473,7 @@ export class TerminalOutput {
     return s;
   }
 
-  private alignText(
-    text: string,
-    width: number,
-    align: string,
-  ): string {
+  private alignText(text: string, width: number, align: string): string {
     const textWidth = stringWidth(text);
     if (textWidth >= width) return text;
 

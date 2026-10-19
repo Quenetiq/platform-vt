@@ -4,7 +4,14 @@ import type { LayoutNode } from '../layout/layout-node';
 import type { VTNode } from '../renderer/vt-node';
 import { createVTNode, appendVTChild, resetVTNodeId } from '../renderer/vt-node';
 
-function layoutNode(vtNode: VTNode, x = 0, y = 0, width = 10, height = 1, children: LayoutNode[] = []): LayoutNode {
+function layoutNode(
+  vtNode: VTNode,
+  x = 0,
+  y = 0,
+  width = 10,
+  height = 1,
+  children: LayoutNode[] = [],
+): LayoutNode {
   return { vtNode, x, y, width, height, children };
 }
 
@@ -68,6 +75,6 @@ describe('render golden snapshots', () => {
     );
 
     // toMatchFileSnapshot resolves relative to this spec file.
-await expect(frame).toMatchFileSnapshot('./snapshots/render.golden');
+    await expect(frame).toMatchFileSnapshot('./snapshots/render.golden');
   });
 });

@@ -73,9 +73,7 @@ describe('parseStylesheet', () => {
     const sheet = parseStylesheet(
       'vt-caret { glyph: █; } vt-button { variant: secondary; } vt-spinner { type: line; } vt-separator { style: double; }',
     );
-    const bySelector = Object.fromEntries(
-      sheet.rules.map((r) => [r.selectors[0], r.styles]),
-    );
+    const bySelector = Object.fromEntries(sheet.rules.map((r) => [r.selectors[0], r.styles]));
     expect(bySelector['vt-caret']).toEqual({ glyph: '█' });
     expect(bySelector['vt-button']).toEqual({ variant: 'secondary' });
     expect(bySelector['vt-spinner']).toEqual({ type: 'line' });
@@ -88,22 +86,20 @@ describe('parseStylesheet', () => {
   });
 
   it('ignores block comments', () => {
-    const sheet = parseStylesheet(
-      '/* header */\nvt-text { color: red; /* inline */ }\n',
-    );
+    const sheet = parseStylesheet('/* header */\nvt-text { color: red; /* inline */ }\n');
     expect(sheet.rules).toHaveLength(1);
     expect(sheet.rules[0]!.styles).toEqual({ color: 'red' });
   });
 
   it('parses multiple sequential rules', () => {
-    const sheet = parseStylesheet(
-      'vt-text { color: red; }\nvt-box { background-color: gray; }',
-    );
+    const sheet = parseStylesheet('vt-text { color: red; }\nvt-box { background-color: gray; }');
     expect(sheet.rules).toHaveLength(2);
   });
 
   it('skips rules with invalid selectors or empty bodies', () => {
-    const sheet = parseStylesheet('vt-box { } #not-supported { color: red; } .cls { color: blue; }');
+    const sheet = parseStylesheet(
+      'vt-box { } #not-supported { color: red; } .cls { color: blue; }',
+    );
     expect(sheet.rules).toHaveLength(1);
     expect(sheet.rules[0]!.selectors).toEqual(['.cls']);
     expect(sheet.rules[0]!.styles).toEqual({ color: 'blue' });
@@ -121,9 +117,7 @@ describe('parseStylesheet', () => {
   });
 
   it('handles declarations spanning multiple lines', () => {
-    const sheet = parseStylesheet(
-      'vt-text {\n  color: bright-white;\n  opacity: dim;\n}',
-    );
+    const sheet = parseStylesheet('vt-text {\n  color: bright-white;\n  opacity: dim;\n}');
     expect(sheet.rules[0]!.styles).toEqual({ color: 'bright-white', opacity: 'dim' });
   });
 });

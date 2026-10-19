@@ -66,12 +66,10 @@ export class ClickService {
   constructor() {
     this.mouse.enable();
 
-    this.mouse.clicks
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((click) => {
-        this.lastClick.set(click);
-        this.dispatch(click);
-      });
+    this.mouse.clicks.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((click) => {
+      this.lastClick.set(click);
+      this.dispatch(click);
+    });
   }
 
   /** Register a clickable element. */

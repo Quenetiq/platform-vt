@@ -97,6 +97,51 @@ describe('FlexLayout', () => {
     expect(result.height).toBe(15);
   });
 
+  it('lays out grid children in rows and columns', () => {
+    const root = createVTNode('root');
+    root.styles.set('display', 'grid');
+    root.styles.set('gridTemplateColumns', 2);
+    root.styles.set('gap', 1);
+    root.styles.set('width', 10);
+
+    const a = createVTNode('text');
+    a.textContent = 'aa';
+    const b = createVTNode('text');
+    b.textContent = 'bb';
+    const c = createVTNode('text');
+    c.textContent = 'ccc';
+    appendVTChild(root, a);
+    appendVTChild(root, b);
+    appendVTChild(root, c);
+
+    const result = layout.calculate(root, 10, 10);
+
+    expect(result.children[0]!.x).toBe(0);
+    expect(result.children[0]!.y).toBe(0);
+    expect(result.children[1]!.x).toBe(5);
+    // Third child wraps to the second row, below the first row plus gap.
+    expect(result.children[2]!.x).toBe(0);
+    expect(result.children[2]!.y).toBe(2);
+    expect(result.height).toBe(3);
+  });
+
+  it('stretches children within the resolved box, not the offered space', () => {
+    const root = createVTNode('root');
+    root.styles.set('flexDirection', 'row');
+    root.styles.set('height', 3);
+
+    const panel = createVTNode('element');
+    panel.styles.set('alignSelf', 'stretch');
+    const text = createVTNode('text');
+    text.textContent = 'x';
+    appendVTChild(panel, text);
+    appendVTChild(root, panel);
+
+    const result = layout.calculate(root, 80, 24);
+
+    expect(result.children[0].height).toBe(3);
+  });
+
   it('handles empty root', () => {
     const root = createVTNode('root');
 

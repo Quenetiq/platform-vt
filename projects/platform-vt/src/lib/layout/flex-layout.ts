@@ -139,9 +139,28 @@ export class FlexLayout {
     boxW = this.clamp(boxW, styles.minWidth, styles.maxWidth, availableWidth);
     boxH = this.clamp(boxH, styles.minHeight, styles.maxHeight, availableHeight);
 
+    if (vtNode.styles.get('display') === 'grid') {
+      return this.layoutGrid(
+        vtNode,
+        styles,
+        x,
+        y,
+        nodeX,
+        nodeY,
+        boxW,
+        boxH,
+        contentWidth,
+        contentHeight,
+        padX,
+        padY,
+      );
+    }
+
     const isRow = styles.flexDirection === 'row';
     const mainSize = isRow ? boxW : boxH;
-    const crossSize = Math.floor(isRow ? contentHeight : contentWidth);
+    // Children stretch within this node's resolved content box, not the space
+    // it was offered: an explicit width/height must constrain its children.
+    const crossSize = Math.floor(isRow ? boxH : boxW);
 
     // A scroll container is a fixed-size viewport whose children keep their
     // natural sizes; overflow is clipped and offset by scrollTop.
@@ -167,7 +186,14 @@ export class FlexLayout {
 
     for (const child of inFlowChildren) {
       const cs = resolveFlexStyles(child);
-      const basis = this.resolveBasis(child, cs, isRow ? boxW : boxH, isRow, false, this.childWrapWidth(cs, boxW));
+      const basis = this.resolveBasis(
+        child,
+        cs,
+        isRow ? boxW : boxH,
+        isRow,
+        false,
+        this.childWrapWidth(cs, boxW),
+      );
       mainSizes.push(basis);
       totalGap += cs.gap;
     }
@@ -193,8 +219,7 @@ export class FlexLayout {
     } else if (freeSpace < 0 && totalShrink > 0 && !isScrollContainer) {
       for (let i = 0; i < inFlowChildren.length; i++) {
         const cs = resolveFlexStyles(inFlowChildren[i]);
-        const shrinkAmount =
-          (freeSpace * cs.flexShrink * mainSizes[i]) / totalShrink;
+        const shrinkAmount = (freeSpace * cs.flexShrink * mainSizes[i]) / totalShrink;
         mainSizes[i] = Math.floor(mainSizes[i] + shrinkAmount);
       }
     } else if (freeSpace < 0 && totalMain > 0 && !isScrollContainer) {
@@ -205,15 +230,23 @@ export class FlexLayout {
 
     // Layout in-flow children recursively
     const gap = styles.gap;
-    const justifyGap = Math.floor(this.calculateJustifyGap(freeSpace, styles, inFlowChildren.length));
-    let offset = Math.floor(this.computeJustifyOffset(freeSpace, totalMain, mainSize, styles, gap, inFlowChildren.length));
+    const justifyGap = Math.floor(
+      this.calculateJustifyGap(freeSpace, styles, inFlowChildren.length),
+    );
+    let offset = Math.floor(
+      this.computeJustifyOffset(freeSpace, totalMain, mainSize, styles, gap, inFlowChildren.length),
+    );
 
     for (let i = 0; i < inFlowChildren.length; i++) {
       const child = inFlowChildren[i];
       const childMain = Math.max(0, mainSizes[i]);
 
-      const childX = isRow ? Math.floor(nodeX + styles.paddingLeft + offset) : Math.floor(nodeX + styles.paddingLeft);
-      const childY = isRow ? Math.floor(nodeY + styles.paddingTop) : Math.floor(nodeY + styles.paddingTop + offset);
+      const childX = isRow
+        ? Math.floor(nodeX + styles.paddingLeft + offset)
+        : Math.floor(nodeX + styles.paddingLeft);
+      const childY = isRow
+        ? Math.floor(nodeY + styles.paddingTop)
+        : Math.floor(nodeY + styles.paddingTop + offset);
 
       // Scroll containers give each child its full natural size so overflow
       // can be scrolled into view instead of being squeezed away.
@@ -223,7 +256,10 @@ export class FlexLayout {
       let childAvailCross = crossSize;
 
       const childStyles = resolveFlexStyles(child);
-      if (childStyles.alignSelf === 'stretch' || (styles.alignItems === 'stretch' && childStyles.alignSelf !== 'flex-start')) {
+      if (
+        childStyles.alignSelf === 'stretch' ||
+        (styles.alignItems === 'stretch' && childStyles.alignSelf !== 'flex-start')
+      ) {
         childAvailCross = crossSize;
       }
 
@@ -278,6 +314,173 @@ export class FlexLayout {
       height: Math.floor(boxH + padY),
       children: childLayouts,
     };
+  }
+
+  /**
+   * Lay out a grid container (`display: grid`).
+   *
+   * `grid-template-columns` accepts a column count (`2`), explicit widths
+   * (`"10 20"`), or a set of fraction tokens (`"1fr 1fr"`). Cells flow left
+   * to right, then top to bottom; `gap` applies to both axes. Row height is
+   * derived from the tallest cell's natural height.
+   */
+  private layoutGrid(
+    vtNode: VTNode,
+    styles: FlexStyles,
+    x: number,
+    y: number,
+    nodeX: number,
+    nodeY: number,
+    boxW: number,
+    boxH: number,
+    contentWidth: number,
+    contentHeight: number,
+    padX: number,
+    padY: number,
+  ): LayoutNode {
+    const gap = styles.gap;
+    const inFlow: VTNode[] = [];
+    const absolute: VTNode[] = [];
+    for (const child of vtNode.children) {
+      if (resolveFlexStyles(child).position === 'absolute') absolute.push(child);
+      else inFlow.push(child);
+    }
+
+    const columnWidths = this.gridColumnWidths(vtNode, boxW, gap);
+    const columnCount = Math.max(1, columnWidths.length);
+    const rowCount = Math.ceil(inFlow.length / columnCount);
+
+    // Natural heights decide each row's size; explicit component heights win.
+    const rowHeights: number[] = [];
+    for (let row = 0; row < rowCount; row++) {
+      let height = 1;
+      for (let column = 0; column < columnCount; column++) {
+        const child = inFlow[row * columnCount + column];
+        if (child) height = Math.max(height, this.naturalHeight(child));
+      }
+      rowHeights.push(height);
+    }
+
+    const children: LayoutNode[] = [];
+    const originX = nodeX + styles.paddingLeft;
+    const originY = nodeY + styles.paddingTop;
+    let rowY = originY;
+    for (let row = 0; row < rowCount; row++) {
+      let cellX = originX;
+      for (let column = 0; column < columnCount; column++) {
+        const child = inFlow[row * columnCount + column];
+        const width = columnWidths[column]!;
+        if (child) {
+          children.push(this.layoutNode(child, cellX, rowY, width, rowHeights[row]!));
+        }
+        cellX += width + gap;
+      }
+      rowY += rowHeights[row]! + gap;
+    }
+
+    for (const child of absolute) {
+      children.push(
+        this.layoutAbsolute(
+          child,
+          originX,
+          originY,
+          contentWidth,
+          contentHeight,
+        ),
+      );
+    }
+
+    const contentHeightUsed =
+      rowCount === 0 ? 0 : rowHeights.reduce((sum, height) => sum + height, 0) + gap * (rowCount - 1);
+    const explicitHeight = typeof styles.height === 'number';
+    const height = explicitHeight ? boxH + padY : contentHeightUsed + padY;
+
+    return {
+      vtNode,
+      x: Math.floor(x),
+      y: Math.floor(y),
+      width: Math.floor(boxW + padX),
+      height: Math.max(0, Math.floor(height)),
+      children,
+    };
+  }
+
+  /** Resolve grid column widths from `grid-template-columns`. */
+  private gridColumnWidths(vtNode: VTNode, available: number, gap: number): number[] {
+    const raw = vtNode.styles.get('gridTemplateColumns');
+    let widths: number[];
+
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      const count = Math.max(1, Math.floor(raw));
+      widths = Array.from({ length: count }, () => 1);
+    } else if (typeof raw === 'string' && raw.trim().length > 0) {
+      const parts = raw.trim().split(/\s+/);
+      const numeric = parts.map(Number);
+      if (numeric.every((value) => Number.isFinite(value) && value > 0)) {
+        widths = numeric;
+      } else {
+        widths = parts.map(() => 1);
+      }
+    } else {
+      widths = [1];
+    }
+
+    const count = Math.max(1, widths.length);
+    const totalGap = gap * (count - 1);
+    const space = Math.max(0, available - totalGap);
+    const explicitTotal = widths.reduce((sum, width) => sum + width, 0);
+
+    if (widths.every((width) => width <= 1)) {
+      // Equal fractions.
+      const each = Math.floor(space / count);
+      return widths.map((_, index) => (index === count - 1 ? space - each * (count - 1) : each));
+    }
+
+    if (explicitTotal > space) {
+      const scale = space / explicitTotal;
+      return widths.map((width) => Math.floor(width * scale));
+    }
+    return widths.map((width) => Math.floor(width));
+  }
+
+  /** Natural (content) height of a node, independent of the offered space. */
+  private naturalHeight(vtNode: VTNode): number {
+    const styles = resolveFlexStyles(vtNode);
+    if (vtNode.styles.get('display') === 'none') return 0;
+    if (typeof styles.height === 'number') return styles.height;
+
+    const padY = styles.paddingTop + styles.paddingBottom;
+    if (vtNode.type === 'text') {
+      const lines = Math.max(1, vtNode.textContent.split('\n').length);
+      return lines + padY;
+    }
+    if (!isFlexContainer(vtNode)) return 1 + padY;
+
+    const children = vtNode.children.filter(
+      (child) => resolveFlexStyles(child).position !== 'absolute',
+    );
+    if (children.length === 0) return 1 + padY;
+
+    if (vtNode.styles.get('display') === 'grid') {
+      const widths = this.gridColumnWidths(vtNode, 0, styles.gap);
+      const count = Math.max(1, widths.length);
+      let total = 0;
+      for (let i = 0; i < children.length; i += count) {
+        let rowHeight = 1;
+        for (let j = i; j < Math.min(i + count, children.length); j++) {
+          rowHeight = Math.max(rowHeight, this.naturalHeight(children[j]!));
+        }
+        total += rowHeight;
+      }
+      const gap = styles.gap * Math.max(0, Math.ceil(children.length / count) - 1);
+      return total + gap + padY;
+    }
+
+    if (styles.flexDirection === 'column') {
+      const total = children.reduce((sum, child) => sum + this.naturalHeight(child), 0);
+      return total + styles.gap * (children.length - 1) + padY;
+    }
+    return Math.max(...children.map((child) => this.naturalHeight(child))) + padY;
   }
 
   /**
@@ -447,9 +650,7 @@ export class FlexLayout {
     if (vtNode.children.length === 0) {
       if (!isFlexContainer(vtNode)) {
         const text = vtNode.textContent;
-        return parentIsRow
-          ? Math.max(1, stringWidth(text))
-          : Math.max(1, text.split('\n').length);
+        return parentIsRow ? Math.max(1, stringWidth(text)) : Math.max(1, text.split('\n').length);
       }
       const min = parentIsRow ? styles.minWidth : styles.minHeight;
       return typeof min === 'number' ? min : 0;
@@ -466,7 +667,14 @@ export class FlexLayout {
       let total = 0;
       for (const child of vtNode.children) {
         const cs = resolveFlexStyles(child);
-        total += this.resolveBasis(child, cs, availableMain, nodeIsRow, false, this.childWrapWidth(cs, wrapWidth));
+        total += this.resolveBasis(
+          child,
+          cs,
+          availableMain,
+          nodeIsRow,
+          false,
+          this.childWrapWidth(cs, wrapWidth),
+        );
       }
       return total + ownPadMain;
     }
@@ -475,7 +683,14 @@ export class FlexLayout {
     let maxVal = 0;
     for (const child of vtNode.children) {
       const cs = resolveFlexStyles(child);
-      const childBasis = this.resolveBasis(child, cs, availableMain, !nodeIsRow, true, this.childWrapWidth(cs, wrapWidth));
+      const childBasis = this.resolveBasis(
+        child,
+        cs,
+        availableMain,
+        !nodeIsRow,
+        true,
+        this.childWrapWidth(cs, wrapWidth),
+      );
       maxVal = Math.max(maxVal, childBasis);
     }
     return maxVal + ownPadMain;
@@ -511,11 +726,7 @@ export class FlexLayout {
     return 0;
   }
 
-  private calculateJustifyGap(
-    freeSpace: number,
-    styles: FlexStyles,
-    childCount: number,
-  ): number {
+  private calculateJustifyGap(freeSpace: number, styles: FlexStyles, childCount: number): number {
     const { justifyContent } = styles;
     if (childCount <= 1) return 0;
 
@@ -573,12 +784,7 @@ export class FlexLayout {
     }
   }
 
-  private clamp(
-    value: number,
-    min: number | 'auto',
-    max: number | 'auto',
-    limit: number,
-  ): number {
+  private clamp(value: number, min: number | 'auto', max: number | 'auto', limit: number): number {
     let result = value;
     if (typeof min === 'number') result = Math.max(result, min);
     if (typeof max === 'number') result = Math.min(result, max);

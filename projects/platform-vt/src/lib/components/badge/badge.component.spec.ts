@@ -96,7 +96,11 @@ describe('StatusBarComponent', () => {
 @Component({
   selector: 'vt-page-host',
   imports: [PaginatorComponent],
-  template: `<vt-paginator [page]="page()" [total]="12" (pageChange)="page.set($event)"></vt-paginator>`,
+  template: `<vt-paginator
+    [page]="page()"
+    [total]="12"
+    (pageChange)="page.set($event)"
+  ></vt-paginator>`,
 })
 class PageHostComponent {
   readonly page = signal(1);

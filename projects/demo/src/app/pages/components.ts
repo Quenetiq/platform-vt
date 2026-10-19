@@ -61,8 +61,9 @@ import {
         [rows]="[
           ['Alice', 'Admin', 'Active'],
           ['Bob', 'Editor', 'Away'],
-          ['Charlie', 'Viewer', 'Offline']
-        ]">
+          ['Charlie', 'Viewer', 'Offline'],
+        ]"
+      >
       </vt-table>
 
       <vt-newline></vt-newline>
@@ -70,7 +71,8 @@ import {
       <vt-text fontWeight="bold">List</vt-text>
       <vt-list
         [items]="['Design', 'Develop', 'Test', 'Deploy']"
-        (activated)="listSelection.set($event)">
+        (activated)="listSelection.set($event)"
+      >
       </vt-list>
       @if (listSelection() !== null) {
         <vt-text color="green">Activated: item {{ listSelection()! + 1 }}</vt-text>
@@ -90,7 +92,8 @@ import {
       <vt-text fontWeight="bold">Select</vt-text>
       <vt-select
         [options]="['Option 1', 'Option 2', 'Option 3']"
-        (valueChange)="selectedOption.set($event)">
+        (valueChange)="selectedOption.set($event)"
+      >
       </vt-select>
       @if (selectedOption() !== null) {
         <vt-text color="green">Selected: Option {{ selectedOption()! + 1 }}</vt-text>

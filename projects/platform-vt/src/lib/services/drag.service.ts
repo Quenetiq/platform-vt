@@ -1,4 +1,15 @@
-import { DestroyRef, Directive, Injectable, inject, input, output, makeEnvironmentProviders, signal, type EnvironmentProviders, ElementRef } from '@angular/core';
+import {
+  DestroyRef,
+  Directive,
+  Injectable,
+  inject,
+  input,
+  output,
+  makeEnvironmentProviders,
+  signal,
+  type EnvironmentProviders,
+  ElementRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { VTMouseEvent } from './sgr-mouse';
 import { MouseService } from './mouse.service';
@@ -67,19 +78,17 @@ export class DragService {
   readonly activeDrag = signal<DraggableElement | null>(null);
 
   constructor() {
-    this.mouse.mouseEvents
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
-        if (event.type === 'down' && !this.dragging()) {
-          this.startDrag(event);
-        } else if (this.dragging()) {
-          if (event.type === 'move') {
-            this.activeDrag()?.onDragMove?.(event);
-          } else if (event.type === 'up') {
-            this.endDrag(event);
-          }
+    this.mouse.mouseEvents.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (event.type === 'down' && !this.dragging()) {
+        this.startDrag(event);
+      } else if (this.dragging()) {
+        if (event.type === 'move') {
+          this.activeDrag()?.onDragMove?.(event);
+        } else if (event.type === 'up') {
+          this.endDrag(event);
         }
-      });
+      }
+    });
   }
 
   registerDraggable(draggable: DraggableElement): void {

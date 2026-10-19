@@ -6,6 +6,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     items: [
       { title: 'Overview', slug: 'README', group: 'Getting Started' },
       { title: 'Getting Started', slug: 'getting-started', group: 'Getting Started' },
+      { title: 'Playground', slug: 'playground', group: 'Getting Started' },
     ],
   },
   {

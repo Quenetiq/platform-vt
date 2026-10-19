@@ -20,7 +20,12 @@ import type { ValidatorFn } from '../forms/validators';
       <vt-text [content]="title()" fontWeight="bold" color="cyan"></vt-text>
       <vt-text [content]="message()"></vt-text>
       <vt-box flexDirection="row" [gap]="1" [flexGrow]="1">
-        <vt-button [label]="confirmLabel()" variant="primary" [autofocus]="true" (clicked)="confirm()"></vt-button>
+        <vt-button
+          [label]="confirmLabel()"
+          variant="primary"
+          [autofocus]="true"
+          (clicked)="confirm()"
+        ></vt-button>
         <vt-button [label]="cancelLabel()" (clicked)="cancel()"></vt-button>
       </vt-box>
     </vt-box>
@@ -58,7 +63,12 @@ export class ConfirmDialogComponent {
     <vt-box flexDirection="column" [gap]="1" [padding]="1" border="round">
       <vt-text [content]="title()" fontWeight="bold" color="cyan"></vt-text>
       <vt-text [content]="message()"></vt-text>
-      <vt-input [placeholder]="placeholder()" [autofocus]="true" (valueChange)="value.set($event)" (submitted)="submit()"></vt-input>
+      <vt-input
+        [placeholder]="placeholder()"
+        [autofocus]="true"
+        (valueChange)="value.set($event)"
+        (submitted)="submit()"
+      ></vt-input>
       @if (error()) {
         <vt-text [content]="error() ?? ''" color="red"></vt-text>
       }

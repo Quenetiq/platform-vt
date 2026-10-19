@@ -1,12 +1,20 @@
-import { Component, inject, input, output, effect, ElementRef, DestroyRef, type OnDestroy } from '@angular/core';
+import {
+  Component,
+  inject,
+  input,
+  output,
+  effect,
+  ElementRef,
+  DestroyRef,
+  type OnDestroy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
 import { MouseService } from '../../services/mouse.service';
 import { RenderService } from '../../services/render.service';
 import { KeymapService } from '../../services/keymap.service';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A split view with two panels and a draggable divider.
@@ -51,7 +59,7 @@ export class SplitViewComponent implements OnDestroy {
 
   readonly ratioChange = output<number>();
 
-  private readonly id = `vt-split-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-split')();
   private readonly unbinders: (() => void)[] = [];
   private dragging = false;
 
@@ -106,17 +114,15 @@ export class SplitViewComponent implements OnDestroy {
       });
 
     // Keyboard resize: ctrl+arrow in the split direction.
-    this.input.keyEvents
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
-        if (!event.ctrl) return;
-        const isRow = this.direction() === 'row';
-        if ((event.name === 'left' && isRow) || (event.name === 'up' && !isRow)) {
-          this.nudge(-0.05);
-        } else if ((event.name === 'right' && isRow) || (event.name === 'down' && !isRow)) {
-          this.nudge(0.05);
-        }
-      });
+    this.input.keyEvents.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!event.ctrl) return;
+      const isRow = this.direction() === 'row';
+      if ((event.name === 'left' && isRow) || (event.name === 'up' && !isRow)) {
+        this.nudge(-0.05);
+      } else if ((event.name === 'right' && isRow) || (event.name === 'down' && !isRow)) {
+        this.nudge(0.05);
+      }
+    });
 
     // Semantic keymap bindings.
     this.unbinders.push(
@@ -173,9 +179,7 @@ export class SplitViewComponent implements OnDestroy {
 
   private dividerElement(): Element | null {
     const el = this.elementRef.nativeElement as HTMLElement;
-    return (
-      Array.from(el.children).find((c) => c.getAttribute('vt-split-id') === this.id) ?? null
-    );
+    return Array.from(el.children).find((c) => c.getAttribute('vt-split-id') === this.id) ?? null;
   }
 
   private containsPoint(el: Element, x: number, y: number): boolean {

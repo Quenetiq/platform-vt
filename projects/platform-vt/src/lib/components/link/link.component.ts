@@ -27,8 +27,14 @@ import { VtTypographyDirective } from '../../directives/typography.directive';
     },
     { directive: VtSizingDirective, inputs: ['width', 'height'] },
     { directive: VtSpacingDirective, inputs: ['padding', 'margin', 'gap'] },
-    { directive: VtAppearanceDirective, inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'] },
-    { directive: VtTypographyDirective, inputs: ['fontStyle', 'textDecoration', 'opacity', 'wrap'] },
+    {
+      directive: VtAppearanceDirective,
+      inputs: ['color', 'backgroundColor', 'fontWeight', 'textAlign'],
+    },
+    {
+      directive: VtTypographyDirective,
+      inputs: ['fontStyle', 'textDecoration', 'opacity', 'wrap'],
+    },
   ],
 })
 export class LinkComponent {

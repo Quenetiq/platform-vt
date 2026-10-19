@@ -89,16 +89,16 @@ export class InteractivePageComponent {
 
   addMessage(text: string): void {
     if (text.trim()) {
-      this.messages.update(msgs => [...msgs, text]);
+      this.messages.update((msgs) => [...msgs, text]);
     }
   }
 
   increment(): void {
-    this.counter.update(c => c + 1);
+    this.counter.update((c) => c + 1);
   }
 
   decrement(): void {
-    this.counter.update(c => c - 1);
+    this.counter.update((c) => c - 1);
   }
 
   reset(): void {

@@ -1,4 +1,14 @@
-import { Component, inject, input, output, signal, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  inject,
+  input,
+  output,
+  signal,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
@@ -6,16 +16,20 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { vimTranslate } from '../../keymaps/vim.presets';
+import { createIdGenerator } from '../../cdk/dom';
 
 /** A node in a {@link TreeComponent}. */
 export interface TreeNode {
   /** Display label. */
   label: string;
-  /** Child nodes. */
+  /** Child nodes. Omit when children are loaded lazily. */
   children?: TreeNode[];
   /** Whether the node starts expanded (defaults to `true`). */
   expanded?: boolean;
 }
+
+/** Loader for lazy tree nodes. */
+export type TreeNodeLoader = (node: TreeNode) => Promise<TreeNode[]>;
 
 /** A flattened, visible line of the tree. */
 interface VisibleRow {
@@ -24,19 +38,29 @@ interface VisibleRow {
   isLast: boolean;
 }
 
-let nextId = 0;
-
 /**
- * A navigable tree with expand/collapse.
+ * A navigable tree with expand/collapse, multi-select, checkboxes, lazy
+ * children and filtering.
  *
  * Renders one line per visible node with connector glyphs (`├─`, `└─`, `│`).
  * Arrow keys move the selection, `left` collapses a selected expanded node,
  * `right` expands a selected collapsed node (or moves into children),
- * `return` toggles. `selected` emits the current {@link TreeNode}.
+ * `return` toggles, `space` toggles the checkbox in multi-select mode, and
+ * `selected` emits the current {@link TreeNode}.
+ *
+ * - **Multi-select**: `[multiSelect]="true"` (or `[checkboxes]="true"`)
+ *   tracks a set of checked nodes; `selectionChange` emits them.
+ * - **Lazy children**: `[loadChildren]="loader"` is called the first time a
+ *   node without `children` is expanded.
+ * - **Filtering**: `[filter]="text"` shows matching nodes and their
+ *   ancestors, ignoring the expansion state.
  *
  * @example
  * ```html
- * <vt-tree [nodes]="treeData()" (selected)="onNode($event)"></vt-tree>
+ * <vt-tree [nodes]="treeData()" [checkboxes]="true"
+ *   [filter]="query()" [loadChildren]="load"
+ *   (selected)="onNode($event)"
+ *   (selectionChange)="onChecked($event)"></vt-tree>
  * ```
  */
 @Component({
@@ -56,16 +80,40 @@ export class TreeComponent {
   /** Enable vim-style navigation (`j`/`k` move the selection). */
   readonly vim = input<boolean>(false);
 
-  /** Emits the selected node. */
+  /** Allow checking several nodes at once. */
+  readonly multiSelect = input<boolean>(false);
+
+  /** Show checkboxes (implies multi-select). */
+  readonly checkboxes = input<boolean>(false);
+
+  /** Case-insensitive filter over node labels; ancestors stay visible. */
+  readonly filter = input<string>('');
+
+  /** Lazy loader called when a node without `children` is expanded. */
+  readonly loadChildren = input<TreeNodeLoader | null>(null);
+
+  /** Emits the active (highlighted) node. */
   readonly selected = output<TreeNode>();
+
+  /** Emits the checked nodes in multi-select mode. */
+  readonly selectionChange = output<TreeNode[]>();
 
   /** Index of the selected visible row. */
   readonly activeIndex = signal(0);
 
-  /** Expansion state keyed by node object identity. */
-  private readonly expanded = new Set<TreeNode>();
+  /** Checked nodes (multi-select mode). */
+  readonly checkedNodes = signal<TreeNode[]>([]);
 
-  private readonly id = `vt-tree-${String(nextId++)}`;
+  /** Nodes currently being loaded lazily. */
+  readonly loading = signal<TreeNode[]>([]);
+
+  /** Explicit expansion state keyed by node object identity. */
+  private readonly expansion = signal(new Map<TreeNode, boolean>());
+
+  /** Children resolved by the lazy loader. */
+  private readonly loadedChildren = signal(new Map<TreeNode, TreeNode[]>());
+
+  private readonly id = createIdGenerator('vt-tree')();
   private readonly isFocused = signal(false);
 
   constructor() {
@@ -78,6 +126,7 @@ export class TreeComponent {
       const el = this.elementRef.nativeElement as HTMLElement;
       const rows = this.visibleRows();
       const active = this.activeIndex();
+      const multiple = this.isMultiple();
 
       el.setAttribute('display', 'flex');
       el.setAttribute('flex-direction', 'column');
@@ -100,9 +149,11 @@ export class TreeComponent {
         const lineEl = el.children[i] as HTMLElement;
         const prefix = this.prefix(row);
         const isExpanded = this.isExpanded(row.node);
-        const hasChildren = (row.node.children?.length ?? 0) > 0;
-        const marker = !hasChildren ? '  ' : isExpanded ? '\u25BC ' : '\u25B6 ';
-        const text = prefix + marker + row.node.label;
+        const hasChildren = this.hasChildren(row.node);
+        const loading = this.loading().includes(row.node);
+        const marker = loading ? '\u22EF ' : !hasChildren ? '  ' : isExpanded ? '\u25BC ' : '\u25B6 ';
+        const check = multiple ? `${this.isChecked(row.node) ? '[x]' : '[ ]'} ` : '';
+        const text = prefix + marker + check + row.node.label;
         lineEl.setAttribute('content', text);
         lineEl.textContent = text;
         if (i === active && this.isFocused()) {
@@ -146,8 +197,7 @@ export class TreeComponent {
         if (index >= 0 && index < rows.length) {
           this.activeIndex.set(index);
           const row = rows[index]!;
-          if (this.isExpanded(row.node)) this.collapse(row.node);
-          else this.expand(row.node);
+          void this.toggleExpanded(row.node);
           this.selected.emit(row.node);
         }
       },
@@ -162,7 +212,7 @@ export class TreeComponent {
         const event = this.vim() ? vimTranslate(rawEvent) : rawEvent;
         const rows = this.visibleRows();
         if (rows.length === 0) return;
-        const index = this.activeIndex();
+        const index = Math.min(this.activeIndex(), rows.length - 1);
         const current = rows[index]!;
         switch (event.name) {
           case 'up':
@@ -182,14 +232,20 @@ export class TreeComponent {
             break;
           case 'right':
             if (!this.isExpanded(current.node)) {
-              this.expand(current.node);
+              void this.expand(current.node);
             } else if (index < rows.length - 1) {
               this.activeIndex.set(index + 1);
             }
             break;
+          case ' ':
+            if (this.isMultiple()) {
+              this.toggleChecked(current.node);
+            } else {
+              this.selected.emit(current.node);
+            }
+            break;
           case 'return':
-            if (this.isExpanded(current.node)) this.collapse(current.node);
-            else this.expand(current.node);
+            void this.toggleExpanded(current.node);
             this.selected.emit(current.node);
             break;
         }
@@ -202,37 +258,123 @@ export class TreeComponent {
     });
   }
 
+  /** Whether the tree currently uses multi-select semantics. */
+  isMultiple(): boolean {
+    return this.multiSelect() || this.checkboxes();
+  }
+
+  /** Whether a node is checked. */
+  isChecked(node: TreeNode): boolean {
+    return this.checkedNodes().includes(node);
+  }
+
+  /** Toggle a node's checked state (multi-select). */
+  toggleChecked(node: TreeNode): void {
+    const checked = this.checkedNodes();
+    this.checkedNodes.set(
+      checked.includes(node) ? checked.filter((candidate) => candidate !== node) : [...checked, node],
+    );
+    this.selectionChange.emit(this.checkedNodes());
+    this.renderService.scheduleRender();
+  }
+
+  /** Add every visible node to the checked set. */
+  checkAllVisible(): void {
+    if (!this.isMultiple()) return;
+    this.checkedNodes.set(this.visibleRows().map((row) => row.node));
+    this.selectionChange.emit(this.checkedNodes());
+    this.renderService.scheduleRender();
+  }
+
+  /** Clear the checked set. */
+  clearChecked(): void {
+    if (this.checkedNodes().length === 0) return;
+    this.checkedNodes.set([]);
+    this.selectionChange.emit(this.checkedNodes());
+    this.renderService.scheduleRender();
+  }
+
   /** Flatten the node tree into visible rows. */
   private visibleRows(): VisibleRow[] {
-    const rows: VisibleRow[] = [];
-    const walk = (nodes: TreeNode[], depth: number, last: boolean): void => {
-      nodes.forEach((node, i) => {
-        rows.push({ node, depth, isLast: i === nodes.length - 1 });
-        if (this.isExpanded(node)) {
-          void last;
-          walk(node.children ?? [], depth + 1, i === nodes.length - 1);
-        }
-      });
+    const filterText = this.filter().trim().toLowerCase();
+    const matches = new Map<TreeNode, boolean>();
+
+    const nodeMatches = (node: TreeNode): boolean => {
+      const cached = matches.get(node);
+      if (cached !== undefined) return cached;
+      const selfMatch = filterText.length === 0 || node.label.toLowerCase().includes(filterText);
+      const childMatch =
+        filterText.length > 0 && this.childrenOf(node).some((child) => nodeMatches(child));
+      const result = selfMatch || childMatch;
+      matches.set(node, result);
+      return result;
     };
-    walk(this.nodes(), 0, true);
+
+    const rows: VisibleRow[] = [];
+    const walk = (nodes: TreeNode[], depth: number): void => {
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i]!;
+        if (filterText.length > 0 && !nodeMatches(node)) continue;
+        rows.push({ node, depth, isLast: i === nodes.length - 1 });
+        const expanded = filterText.length > 0 || this.isExpanded(node);
+        if (expanded) {
+          walk(this.childrenOf(node), depth + 1);
+        }
+      }
+    };
+    walk(this.nodes(), 0);
     return rows;
   }
 
-  private isExpanded(node: TreeNode): boolean {
-    if ((node.children?.length ?? 0) === 0) return false;
-    return this.expanded.has(node) ? true : node.expanded !== false;
+  private childrenOf(node: TreeNode): TreeNode[] {
+    return node.children ?? this.loadedChildren().get(node) ?? [];
   }
 
-  private expand(node: TreeNode): void {
-    if ((node.children?.length ?? 0) === 0) return;
-    this.expanded.add(node);
+  private isExpanded(node: TreeNode): boolean {
+    if (!this.hasChildren(node)) return false;
+    const state = this.expansion();
+    // Lazy nodes start collapsed: the `expanded` default only applies to
+    // nodes with known children.
+    if (node.children === undefined && this.childrenOf(node).length === 0) {
+      return state.get(node) === true;
+    }
+    return state.has(node) ? state.get(node)! : node.expanded !== false;
+  }
+
+  private hasChildren(node: TreeNode): boolean {
+    const children = this.childrenOf(node);
+    if (node.children !== undefined) return children.length > 0;
+    if (this.loadedChildren().has(node)) return children.length > 0;
+    return this.loadChildren() !== null;
+  }
+
+  private async expand(node: TreeNode): Promise<void> {
+    if (this.isExpanded(node)) return;
+    this.expansion.update((state) => new Map(state).set(node, true));
+
+    const loader = this.loadChildren();
+    if (loader && node.children === undefined && !this.loadedChildren().has(node)) {
+      this.loading.update((nodes) => [...nodes, node]);
+      this.renderService.scheduleRender();
+      try {
+        const children = await loader(node);
+        this.loadedChildren.update((map) => new Map(map).set(node, children));
+      } finally {
+        this.loading.update((nodes) => nodes.filter((candidate) => candidate !== node));
+      }
+    }
     this.renderService.scheduleRender();
   }
 
   private collapse(node: TreeNode): void {
-    if ((node.children?.length ?? 0) === 0) return;
-    this.expanded.delete(node);
+    if (!this.hasChildren(node)) return;
+    this.expansion.update((state) => new Map(state).set(node, false));
     this.renderService.scheduleRender();
+  }
+
+  private async toggleExpanded(node: TreeNode): Promise<void> {
+    if (this.isExpanded(node)) this.collapse(node);
+    else await this.expand(node);
   }
 
   private prefix(row: VisibleRow): string {
@@ -246,7 +388,7 @@ export class TreeComponent {
           ancestors.push(i === nodes.length - 1);
           return true;
         }
-        if (find(n.children ?? [], target)) {
+        if (find(this.childrenOf(n), target)) {
           ancestors.push(i === nodes.length - 1);
           return true;
         }

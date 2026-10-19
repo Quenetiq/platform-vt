@@ -43,12 +43,7 @@ export function resolveFlexStyles(node: VTNode): FlexStyles {
   }
 
   const ai = s.get('alignItems');
-  if (
-    ai === 'flex-start' ||
-    ai === 'center' ||
-    ai === 'flex-end' ||
-    ai === 'stretch'
-  ) {
+  if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end' || ai === 'stretch') {
     styles.alignItems = ai;
   }
 

@@ -33,7 +33,6 @@ const COST_PER_TOKEN = 0.000004;
   ],
   template: `
     <vt-box flexDirection="column" [flexGrow]="1">
-
       @if (messages().length === 0) {
         <vt-text
           content="Welcome to Terminal Assistant — try \`help\`, \`code\` or \`fix\`"
@@ -69,13 +68,7 @@ const COST_PER_TOKEN = 0.000004;
 
       <vt-newline></vt-newline>
 
-      <vt-box
-        class="input"
-        flexDirection="row"
-        [height]="3"
-        [alignItems]="'center'"
-        [gap]="1"
-      >
+      <vt-box class="input" flexDirection="row" [height]="3" [alignItems]="'center'" [gap]="1">
         <vt-input [autofocus]="true" (submitted)="addReply($event)">
           <vt-caret [blink]="true" color="#58a6ff"></vt-caret>
         </vt-input>
@@ -109,7 +102,6 @@ const COST_PER_TOKEN = 0.000004;
           <vt-text [content]="usageLabel()" [color]="'#8b949e'"></vt-text>
         </vt-box>
       </vt-box>
-
     </vt-box>
   `,
 })
@@ -134,7 +126,7 @@ export class App {
     const text = typeof value === 'string' ? value.trim() : '';
     if (!text || this.thinking()) return;
 
-    this.messages.update(m => [...m, { role: 'user', text }]);
+    this.messages.update((m) => [...m, { role: 'user', text }]);
     this.simulateReply(text);
   }
 
@@ -169,7 +161,7 @@ export class App {
         this.thinking.set(false);
         return;
       }
-      this.messages.update(m => [...m, steps[i] as ChatMessage]);
+      this.messages.update((m) => [...m, steps[i] as ChatMessage]);
       i++;
     }, 700);
   }

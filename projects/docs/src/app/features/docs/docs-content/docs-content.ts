@@ -1,10 +1,19 @@
-import { Component, OnInit, inject, signal, ElementRef, input } from '@angular/core';
+import { Component, OnInit, inject, signal, ElementRef, input, computed, type Type } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { parseMarkdown, renderInline, type MdBlock, type MdHeading, type MdInline } from './markdown-parser';
+import {
+  parseMarkdown,
+  renderInline,
+  type MdBlock,
+  type MdHeading,
+  type MdInline,
+} from './markdown-parser';
+import { TerminalPreview } from '../../../shared/ui/terminal-preview/terminal-preview';
+import { DOC_SAMPLES } from '../../../shared/ui/terminal-preview/samples';
 
 @Component({
   selector: 'app-docs-content',
   standalone: true,
+  imports: [TerminalPreview],
   templateUrl: './docs-content.html',
   styleUrl: './docs-content.scss',
 })
@@ -19,6 +28,12 @@ export class DocsContent implements OnInit {
   readonly contentHtml = signal('');
   readonly error = signal<string | null>(null);
   readonly pageTitle = signal('');
+
+  /** Live sample component for the current slug, when one exists. */
+  readonly sample = computed<Type<unknown> | null>(() => {
+    const factory = DOC_SAMPLES[this.slug()];
+    return factory ? factory() : null;
+  });
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -122,7 +137,10 @@ export class DocsContent implements OnInit {
       if (idx > 0) {
         const key = line.slice(0, idx).trim();
         let value = line.slice(idx + 1).trim();
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
           value = value.slice(1, -1);
         }
         fm[key] = value;
@@ -133,9 +151,7 @@ export class DocsContent implements OnInit {
   }
 
   private slugToTitle(slug: string): string {
-    return slug
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }
 

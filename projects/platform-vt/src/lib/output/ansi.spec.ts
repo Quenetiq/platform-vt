@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cursor, erase, fg, bg, txt, reset } from './ansi';
+import { cursor, erase, fg, bg, txt, reset, osc, mode } from './ansi';
 
 describe('cursor', () => {
   it('moveTo generates correct escape', () => {
@@ -27,6 +27,46 @@ describe('cursor', () => {
   it('defaults n to 1', () => {
     expect(cursor.moveUp()).toBe('\x1b[1A');
     expect(cursor.moveDown()).toBe('\x1b[1B');
+  });
+
+  it('shape emits DECSCUSR sequences', () => {
+    expect(cursor.shape('block')).toBe('\x1b[1 q');
+    expect(cursor.shape('block', false)).toBe('\x1b[2 q');
+    expect(cursor.shape('underline')).toBe('\x1b[3 q');
+    expect(cursor.shape('bar', false)).toBe('\x1b[6 q');
+    expect(cursor.shape('default')).toBe('\x1b[0 q');
+  });
+});
+
+describe('osc', () => {
+  it('sets title, notifications and progress', () => {
+    expect(osc.title('app')).toBe('\x1b]2;app\x07');
+    expect(osc.notification('done', 'Build')).toBe('\x1b]9;Build: done\x07');
+    expect(osc.progress('normal', 42)).toBe('\x1b]9;4;1;42\x07');
+    expect(osc.progress('error', 10)).toBe('\x1b]9;4;2;10\x07');
+    expect(osc.progress('remove')).toBe('\x1b]9;4;0;0\x07');
+  });
+
+  it('queries and sets default colors', () => {
+    expect(osc.queryForeground()).toBe('\x1b]10;?\x07');
+    expect(osc.queryBackground()).toBe('\x1b]11;?\x07');
+    expect(osc.setBackground('#000000')).toBe('\x1b]11;#000000\x07');
+  });
+
+  it('reports the working directory', () => {
+    expect(osc.workingDirectory('/tmp/x')).toBe('\x1b]7;file://localhost/tmp/x\x07');
+  });
+});
+
+describe('mode title stack and flash', () => {
+  it('pushes and pops the title', () => {
+    expect(mode.pushTitle()).toBe('\x1b[22;2t');
+    expect(mode.popTitle()).toBe('\x1b[23;2t');
+  });
+
+  it('flashes the screen', () => {
+    expect(mode.flash()).toBe('\x1b[?5h');
+    expect(mode.exitFlash()).toBe('\x1b[?5l');
   });
 });
 

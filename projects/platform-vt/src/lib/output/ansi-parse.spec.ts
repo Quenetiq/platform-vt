@@ -45,10 +45,7 @@ describe('parseAnsi', () => {
 
   it('merges consecutive runs with identical styles', () => {
     const segments = parseAnsi('\x1b[31ma\x1b[31mb\x1b[0mc');
-    expect(segments).toEqual([
-      { text: 'ab', color: 'red' },
-      { text: 'c' },
-    ]);
+    expect(segments).toEqual([{ text: 'ab', color: 'red' }, { text: 'c' }]);
   });
 
   it('resets color with 39 and keeps other styles', () => {

@@ -48,10 +48,17 @@ export class SparklineComponent {
       const data = this.data();
       const max = this.max() ?? Math.max(1, ...data);
       const widthInput = this.width();
-      const width = widthInput === 'auto' ? (this.type() === 'bar' ? data.length : Math.max(1, data.length - 1) * 2) : widthInput;
+      const width =
+        widthInput === 'auto'
+          ? this.type() === 'bar'
+            ? data.length
+            : Math.max(1, data.length - 1) * 2
+          : widthInput;
 
       const text =
-        this.type() === 'bar' ? this.renderBar(data, max, width) : this.renderLine(data, max, width);
+        this.type() === 'bar'
+          ? this.renderBar(data, max, width)
+          : this.renderLine(data, max, width);
 
       el.setAttribute('display', 'block');
       el.setAttribute('flex-shrink', '0');
@@ -66,7 +73,17 @@ export class SparklineComponent {
   }
 
   private renderBar(data: number[], max: number, width: number): string {
-    const GLYPHS = [' ', '\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588'];
+    const GLYPHS = [
+      ' ',
+      '\u2581',
+      '\u2582',
+      '\u2583',
+      '\u2584',
+      '\u2585',
+      '\u2586',
+      '\u2587',
+      '\u2588',
+    ];
     return data
       .slice(0, width)
       .map((value) => {

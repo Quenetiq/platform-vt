@@ -15,7 +15,8 @@ export const ESC = '\x1b[';
  */
 export const cursor = {
   /** Move cursor to (x, y) position. Coordinates are 0-indexed. */
-  moveTo: (x: number, y: number): string => `${ESC}${String(Math.floor(y) + 1)};${String(Math.floor(x) + 1)}H`,
+  moveTo: (x: number, y: number): string =>
+    `${ESC}${String(Math.floor(y) + 1)};${String(Math.floor(x) + 1)}H`,
   /** Hide the terminal cursor. */
   hide: (): string => `${ESC}?25l`,
   /** Show the terminal cursor. */
@@ -32,7 +33,36 @@ export const cursor = {
   moveRight: (n = 1): string => `${ESC}${String(n)}C`,
   /** Move cursor left by n columns. */
   moveLeft: (n = 1): string => `${ESC}${String(n)}D`,
+  /**
+   * Set the cursor shape (DECSCUSR).
+   *
+   * @param style - `'block'`, `'underline'`, `'bar'` or `'default'`.
+   * @param blink - Whether the cursor blinks.
+   */
+  shape: (style: CursorShape = 'default', blink = true): string => {
+    const n =
+      style === 'block'
+        ? blink
+          ? 1
+          : 2
+        : style === 'underline'
+          ? blink
+            ? 3
+            : 4
+          : style === 'bar'
+            ? blink
+              ? 5
+              : 6
+            : 0;
+    return `${ESC}${String(n)} q`;
+  },
 };
+
+/** Terminal cursor shape for {@link cursor.shape}. */
+export type CursorShape = 'default' | 'block' | 'underline' | 'bar';
+
+/** Progress state reported to the terminal taskbar (OSC 9;4). */
+export type TerminalProgressState = 'remove' | 'normal' | 'error' | 'indeterminate' | 'warning';
 
 /**
  * Screen/line erase helpers.
@@ -128,6 +158,14 @@ export const mode = {
   focusEvents: (): string => `${ESC}?1004h`,
   /** Stop reporting focus events. */
   exitFocusEvents: (): string => `${ESC}?1004l`,
+  /** Save the window title on a stack (CSI 22 t). */
+  pushTitle: (): string => `${ESC}22;2t`,
+  /** Restore the previously saved window title (CSI 23 t). */
+  popTitle: (): string => `${ESC}23;2t`,
+  /** Start reverse-video flash (visual bell). */
+  flash: (): string => `${ESC}?5h`,
+  /** Stop reverse-video flash. */
+  exitFlash: (): string => `${ESC}?5l`,
 };
 
 /**
@@ -153,4 +191,54 @@ export const osc = {
     `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}\x07`,
   /** Request the current clipboard content (OSC 52 read). */
   clipboardRead: (): string => `\x1b]52;c;?\x07`,
+  /**
+   * Set the window title (OSC 2).
+   *
+   * The title is shown in the terminal's tab/window chrome.
+   */
+  title: (title: string): string => `\x1b]2;${title}\x07`,
+  /**
+   * Set both the icon name and the window title (OSC 0).
+   */
+  iconAndTitle: (title: string): string => `\x1b]0;${title}\x07`,
+  /**
+   * Show a desktop notification (OSC 9).
+   *
+   * Supported by iTerm2, WezTerm, ConEmu, Windows Terminal and others;
+   * unsupported terminals ignore the sequence.
+   */
+  notification: (body: string, title?: string): string =>
+    `\x1b]9;${title ? `${title}: ` : ''}${body}\x07`,
+  /**
+   * Report taskbar progress (OSC 9;4).
+   *
+   * @param state - `'remove'` clears the indicator, `'normal'`/`'error'`/
+   * `'warning'` show a percentage, `'indeterminate'` shows an animated bar.
+   * @param value - Progress percentage (0-100) for percentage states.
+   */
+  progress: (state: TerminalProgressState, value = 0): string => {
+    const code =
+      state === 'remove'
+        ? 0
+        : state === 'normal'
+          ? 1
+          : state === 'error'
+            ? 2
+            : state === 'indeterminate'
+              ? 3
+              : 4;
+    const percent = Math.max(0, Math.min(100, Math.round(value)));
+    return `\x1b]9;4;${String(code)};${String(percent)}\x07`;
+  },
+  /** Query the terminal's default foreground color (OSC 10). */
+  queryForeground: (): string => '\x1b]10;?\x07',
+  /** Query the terminal's default background color (OSC 11). */
+  queryBackground: (): string => '\x1b]11;?\x07',
+  /** Set the terminal's default foreground color (OSC 10). */
+  setForeground: (color: string): string => `\x1b]10;${color}\x07`,
+  /** Set the terminal's default background color (OSC 11). */
+  setBackground: (color: string): string => `\x1b]11;${color}\x07`,
+  /** Report the current working directory (OSC 7). */
+  workingDirectory: (path: string, host = 'localhost'): string =>
+    `\x1b]7;file://${host}${path.startsWith('/') ? path : `/${path}`}\x07`,
 };

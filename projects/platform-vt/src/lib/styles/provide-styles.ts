@@ -50,10 +50,7 @@ export function provideStyles(source: StylesSource): EnvironmentProviders {
     void loadStylesheet(source.stylesUrl)
       .then((content) => registry.register(parseStylesheet(content)))
       .catch((error) =>
-        console.error(
-          `[platform-vt] Failed to load stylesheet "${source.stylesUrl}":`,
-          error,
-        ),
+        console.error(`[platform-vt] Failed to load stylesheet "${source.stylesUrl}":`, error),
       );
   }
 

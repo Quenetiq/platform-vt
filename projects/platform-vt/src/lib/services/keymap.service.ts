@@ -1,4 +1,10 @@
-import { Injectable, inject, signal, makeEnvironmentProviders, type EnvironmentProviders } from '@angular/core';
+import {
+  Injectable,
+  inject,
+  signal,
+  makeEnvironmentProviders,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { VTKeyEvent } from './input.service';
 import { InputService } from './input.service';
@@ -60,13 +66,11 @@ export class KeymapService {
   }[] = [];
 
   constructor() {
-    this.input.keyEvents
-      .pipe(takeUntilDestroyed())
-      .subscribe((event) => {
-        const key = keyFromEvent(event);
-        this.lastKey.set(key);
-        this.dispatch(key, event);
-      });
+    this.input.keyEvents.pipe(takeUntilDestroyed()).subscribe((event) => {
+      const key = keyFromEvent(event);
+      this.lastKey.set(key);
+      this.dispatch(key, event);
+    });
   }
 
   /**
@@ -79,11 +83,7 @@ export class KeymapService {
    * binding is skipped when it returns `false`.
    * @returns A function that removes the binding.
    */
-  bind(
-    keys: string,
-    handler: KeyHandler,
-    options?: { when?: () => boolean },
-  ): () => void {
+  bind(keys: string, handler: KeyHandler, options?: { when?: () => boolean }): () => void {
     const binding = {
       keys,
       handler,
@@ -100,9 +100,7 @@ export class KeymapService {
    * Whether at least one binding would match the given key string right now.
    */
   isBound(key: string): boolean {
-    return this.bindings.some(
-      (b) => b.when() && b.keys.split(/\s+/).includes(key),
-    );
+    return this.bindings.some((b) => b.when() && b.keys.split(/\s+/).includes(key));
   }
 
   private dispatch(key: string, event: VTKeyEvent): void {

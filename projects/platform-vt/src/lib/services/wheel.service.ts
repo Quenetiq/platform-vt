@@ -1,4 +1,11 @@
-import { DestroyRef, Injectable, inject, makeEnvironmentProviders, NgZone, type EnvironmentProviders } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  inject,
+  makeEnvironmentProviders,
+  NgZone,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import type { VTMouseEvent } from './sgr-mouse';

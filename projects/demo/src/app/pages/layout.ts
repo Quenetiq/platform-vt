@@ -28,7 +28,13 @@ import { BoxComponent, TextComponent, SeparatorComponent, NewlineComponent } fro
       <vt-newline></vt-newline>
 
       <vt-text fontWeight="bold">Space Between</vt-text>
-      <vt-box flexDirection="row" justifyContent="space-between" [width]="40" [padding]="1" border="single">
+      <vt-box
+        flexDirection="row"
+        justifyContent="space-between"
+        [width]="40"
+        [padding]="1"
+        border="single"
+      >
         <vt-text>Left</vt-text>
         <vt-text>Right</vt-text>
       </vt-box>

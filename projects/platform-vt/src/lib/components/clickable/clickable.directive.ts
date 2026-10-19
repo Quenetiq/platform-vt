@@ -1,8 +1,7 @@
 import { DestroyRef, Directive, ElementRef, inject, output } from '@angular/core';
 import { ClickService } from '../../services/click.service';
 import type { VTClickEvent } from '../../services/sgr-mouse';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * Makes any element clickable by the mouse in the terminal.
@@ -27,7 +26,7 @@ export class ClickableDirective {
   /** Emitted when the element is clicked in the terminal. */
   readonly clicked = output<VTClickEvent>();
 
-  private readonly id = `vt-clickable-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-clickable')();
 
   constructor() {
     const element = this.elementRef.nativeElement as HTMLElement;

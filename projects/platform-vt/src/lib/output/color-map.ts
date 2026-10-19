@@ -34,10 +34,7 @@ const COLOR_MAP: Record<string, string> = {
  * resolveColor('bright-blue', 'bg');  // '\x1b[104m'
  * ```
  */
-export function resolveColor(
-  name: string,
-  type: 'fg' | 'bg',
-): string | null {
+export function resolveColor(name: string, type: 'fg' | 'bg'): string | null {
   const key = name.toLowerCase();
   if (!(key in COLOR_MAP)) {
     const rgb = parseColor(name);
@@ -70,11 +67,7 @@ export function resolveColor(
  * wrapColor('Hello', 'red', 'fg');  // '\x1b[31mHello\x1b[39m'
  * ```
  */
-export function wrapColor(
-  text: string,
-  name: string,
-  type: 'fg' | 'bg',
-): string {
+export function wrapColor(text: string, name: string, type: 'fg' | 'bg'): string {
   const code = resolveColor(name, type);
   if (!code) return text;
   return `${code}${text}\x1b[${type === 'fg' ? '39' : '49'}m`;
@@ -122,10 +115,7 @@ const COLOR_RGB: Record<string, [number, number, number]> = {
  * resolveColorRgb('bright-white', 'fg');  // '\x1b[38;2;255;255;255m'
  * ```
  */
-export function resolveColorRgb(
-  name: string,
-  type: 'fg' | 'bg',
-): string | null {
+export function resolveColorRgb(name: string, type: 'fg' | 'bg'): string | null {
   const rgb = COLOR_RGB[name.toLowerCase()] ?? parseColor(name);
   if (!rgb) return null;
   const prefix = type === 'fg' ? '38' : '48';
@@ -174,10 +164,7 @@ function parseColor(value: string): [number, number, number] | null {
   return null;
 }
 
-function rgbSequence(
-  rgb: [number, number, number],
-  type: 'fg' | 'bg',
-): string {
+function rgbSequence(rgb: [number, number, number], type: 'fg' | 'bg'): string {
   const prefix = type === 'fg' ? '38' : '48';
   return `\x1b[${prefix};2;${rgb[0]};${rgb[1]};${rgb[2]}m`;
 }
@@ -195,11 +182,7 @@ function rgbSequence(
  * wrapColorRgb('Hello', 'bright-white', 'fg');  // '\x1b[38;2;255;255;255mHello\x1b[39m'
  * ```
  */
-export function wrapColorRgb(
-  text: string,
-  name: string,
-  type: 'fg' | 'bg',
-): string {
+export function wrapColorRgb(text: string, name: string, type: 'fg' | 'bg'): string {
   const code = resolveColorRgb(name, type);
   if (!code) return text;
   return `${code}${text}\x1b[${type === 'fg' ? '39' : '49'}m`;
@@ -343,7 +326,7 @@ export function resolveColorAdaptive(
   if (explicit256) {
     const index = Math.min(255, Number(explicit256[1]));
     if (mode === 16) {
-      return resolveColor(String(index < 8 ? index : index >= 232 ? 7 : (index % 16)), type);
+      return resolveColor(String(index < 8 ? index : index >= 232 ? 7 : index % 16), type);
     }
     return rgbCode(index, type);
   }

@@ -1,4 +1,14 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import type { LayoutNode } from '../../layout/layout-node';
@@ -75,8 +85,12 @@ export class ListComponent {
       id: this.id,
       element: this.elementRef.nativeElement,
       priority: 1,
-      onFocus: () => { this.renderService.scheduleRender(); },
-      onBlur: () => { this.renderService.scheduleRender(); },
+      onFocus: () => {
+        this.renderService.scheduleRender();
+      },
+      onBlur: () => {
+        this.renderService.scheduleRender();
+      },
     });
 
     const ref = afterNextRender(() => {

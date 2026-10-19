@@ -1,4 +1,13 @@
-import { Injectable, inject, signal, makeEnvironmentProviders, afterNextRender, Injector, DestroyRef, type EnvironmentProviders } from '@angular/core';
+import {
+  Injectable,
+  inject,
+  signal,
+  makeEnvironmentProviders,
+  afterNextRender,
+  Injector,
+  DestroyRef,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { FlexLayout } from '../layout/flex-layout';
 import type { LayoutNode } from '../layout/layout-node';
 import type { LayoutRect } from '../renderer/vt-node';
@@ -6,6 +15,7 @@ import { TerminalOutput } from '../output/terminal-output';
 import type { CellRegion } from '../output/screen-buffer';
 import { TerminalService } from './terminal.service';
 import { SelectionService } from './selection.service';
+import type { Cell } from '../output/screen-buffer';
 
 @Injectable()
 export class RenderService {
@@ -29,6 +39,8 @@ export class RenderService {
 
   readonly renderCount = signal(0);
   readonly lastRenderTime = signal(0);
+  /** Duration of the last full render pass in milliseconds. */
+  readonly lastRenderDuration = signal(0);
 
   /**
    * The layout trees from the most recent render, one per layer.
@@ -63,9 +75,12 @@ export class RenderService {
 
     // Flush only after Angular finishes its change detection pass for the
     // current tick, so the DOM reflects the latest signal-driven state.
-    afterNextRender(() => {
-      if (this.renderScheduled) this.flush();
-    }, { injector: this.injector });
+    afterNextRender(
+      () => {
+        if (this.renderScheduled) this.flush();
+      },
+      { injector: this.injector },
+    );
 
     // Safety net for calls made outside a change-detection cycle (e.g. resize):
     // if no CD pass runs, the afterNextRender hook would never fire.
@@ -84,40 +99,49 @@ export class RenderService {
     const rootEl = document.getElementById('vt-root');
     if (!rootEl) return;
 
-    // Render passes loop until the tree stabilises: listeners (e.g. overlay
-    // repositioning) may schedule another pass, which converges within this
-    // call instead of leaking into a later tick.
-    const MAX_PASSES = 10;
-    let passes = 0;
-    do {
+    // Batch the whole render pass into one terminal frame when synchronized
+    // output is enabled: the screen updates appear atomically, without
+    // flicker from partial repaints.
+    this.terminal.synchronized(() => {
+      // Render passes loop until the tree stabilises: listeners (e.g. overlay
+      // repositioning) may schedule another pass, which converges within this
+      // call instead of leaking into a later tick.
+      const MAX_PASSES = 10;
+      let passes = 0;
+      const startedAt = globalThis.performance?.now() ?? Date.now();
+      do {
+        this.renderScheduled = false;
+
+        // Each child of #vt-root is a layer: the first is the application itself,
+        // later layers (overlays) paint on top without clearing the screen.
+        const colorMode = this.terminal.capabilities().colors;
+        const selection = this.selectionService?.regions() ?? null;
+        const layers: LayoutNode[] = [];
+        for (let i = 0; i < rootEl.children.length; i++) {
+          const layerRoot = rootEl.children[i];
+          const layoutTree = this.layout.calculateFromDom(layerRoot, columns, rows);
+          layers.push(layoutTree);
+          this.output.render(layoutTree, columns, rows, {
+            clear: i === 0,
+            colorMode,
+            selection: i === 0 ? selection : null,
+          });
+        }
+        this.layerLayouts = layers;
+        this.output.flush();
+
+        this.renderCount.update((c) => c + 1);
+        this.lastRenderTime.set(Date.now());
+
+        for (const listener of this.flushListeners) listener();
+        passes++;
+      } while (this.renderScheduled && passes < MAX_PASSES);
+
+      this.lastRenderDuration.set(
+        (globalThis.performance?.now() ?? Date.now()) - startedAt,
+      );
       this.renderScheduled = false;
-
-      // Each child of #vt-root is a layer: the first is the application itself,
-      // later layers (overlays) paint on top without clearing the screen.
-      const colorMode = this.terminal.capabilities().colors;
-      const selection = this.selectionService?.region() ?? null;
-      const layers: LayoutNode[] = [];
-      for (let i = 0; i < rootEl.children.length; i++) {
-        const layerRoot = rootEl.children[i];
-        const layoutTree = this.layout.calculateFromDom(layerRoot, columns, rows);
-        layers.push(layoutTree);
-        this.output.render(layoutTree, columns, rows, {
-          clear: i === 0,
-          colorMode,
-          selection: i === 0 ? selection : null,
-        });
-      }
-      this.layerLayouts = layers;
-      this.output.flush();
-
-      this.renderCount.update((c) => c + 1);
-      this.lastRenderTime.set(Date.now());
-
-      for (const listener of this.flushListeners) listener();
-      passes++;
-    } while (this.renderScheduled && passes < MAX_PASSES);
-
-    this.renderScheduled = false;
+    });
   }
 
   /** The layout tree from the last render, or null before the first render. */
@@ -135,11 +159,21 @@ export class RenderService {
   }
 
   /**
+   * Read a single cell of the last painted frame (tooling/previews).
+   *
+   * @returns The cell, or an empty cell for out-of-bounds coordinates.
+   */
+  getCell(x: number, y: number): Cell {
+    return this.output.screen.getCell(x, y);
+  }
+
+  /**
    * Find an element's layout node in the last render.
    *
    * Walks from the element up to its layer root to determine the layer, then
-   * descends the layout tree by DOM child indices. Returns `null` when the
-   * element is not part of the rendered tree (e.g. never laid out).
+   * descends the layout tree along the element's child-index path. Returns
+   * `null` when the element is not part of the rendered tree (e.g. never
+   * laid out).
    *
    * @param element - A DOM element inside one of the rendered layers.
    * @returns The element's layout node, or null.
@@ -158,17 +192,24 @@ export class RenderService {
     const layerIndex = Array.prototype.indexOf.call(rootEl.children, layerEl);
     if (layerIndex < 0 || layerIndex >= this.layerLayouts.length) return null;
 
-    // Descend the layout tree mirroring the DOM structure by child indices.
-    let node: LayoutNode = this.layerLayouts[layerIndex]!;
+    // Collect the child-index path from the element up to the layer root,
+    // then descend the layout tree along the reversed path. The path must
+    // be resolved before descending: walking up and descending in one loop
+    // would apply deeper indices to shallower layout nodes.
+    const path: number[] = [];
     let current = element;
     while (current !== layerEl && current.parentElement) {
-      const index = Array.prototype.indexOf.call(current.parentElement.children, current);
-      if (index < 0 || index >= node.children.length) return null;
-      node = node.children[index]!;
+      path.push(Array.prototype.indexOf.call(current.parentElement.children, current));
       current = current.parentElement;
     }
     if (current !== layerEl) return null;
 
+    let node: LayoutNode = this.layerLayouts[layerIndex]!;
+    for (let i = path.length - 1; i >= 0; i--) {
+      const index = path[i]!;
+      if (index < 0 || index >= node.children.length) return null;
+      node = node.children[index]!;
+    }
     return node;
   }
 

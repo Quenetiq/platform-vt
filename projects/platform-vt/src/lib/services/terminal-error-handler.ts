@@ -1,4 +1,10 @@
-import { ErrorHandler, Injectable, inject, makeEnvironmentProviders, type EnvironmentProviders } from '@angular/core';
+import {
+  ErrorHandler,
+  Injectable,
+  inject,
+  makeEnvironmentProviders,
+  type EnvironmentProviders,
+} from '@angular/core';
 import { RenderService } from './render.service';
 import { TerminalService } from './terminal.service';
 

@@ -8,6 +8,11 @@
       <a routerLink="/getting-started">Go to Getting Started</a>
     </div>
   } @else {
+    @if (sample()) {
+      <div class="docs-demo">
+        <app-terminal-preview [sample]="sample()!" [rows]="8"></app-terminal-preview>
+      </div>
+    }
     <article class="docs-article" [innerHTML]="contentHtml()"></article>
   }
 </div>

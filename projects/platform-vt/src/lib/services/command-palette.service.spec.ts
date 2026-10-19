@@ -90,9 +90,12 @@ describe('CommandPaletteService', () => {
     let quitRan = false;
     palette.commands.set([
       { title: 'Save file', action: (): void => undefined },
-      { title: 'Quit app', action: (): void => {
-        quitRan = true;
-      } },
+      {
+        title: 'Quit app',
+        action: (): void => {
+          quitRan = true;
+        },
+      },
     ]);
     palette.close();
     // Reopen and verify the full flow again from scratch.

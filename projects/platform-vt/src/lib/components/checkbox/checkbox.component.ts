@@ -1,4 +1,14 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import type { VTNode } from '../../renderer/vt-node';
@@ -7,8 +17,7 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 @Component({
   selector: 'vt-checkbox',
@@ -29,7 +38,7 @@ export class CheckboxComponent {
   readonly isFocused = signal(false);
   readonly autofocus = input<boolean>(false);
 
-  private readonly id = `vt-checkbox-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-checkbox')();
 
   constructor() {
     effect(() => {
@@ -98,10 +107,7 @@ export class CheckboxComponent {
     this.inputService.keyEvents
       .pipe(
         filter(() => this.isFocused()),
-        filter(
-          (event): event is VTKeyEvent =>
-            event.name === 'return' || event.name === ' ',
-        ),
+        filter((event): event is VTKeyEvent => event.name === 'return' || event.name === ' '),
         takeUntilDestroyed(),
       )
       .subscribe(() => {

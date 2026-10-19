@@ -1,4 +1,15 @@
-import { Component, contentChildren, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  contentChildren,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
@@ -6,8 +17,7 @@ import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A single radio option. Usually placed inside a {@link RadioGroupComponent};
@@ -50,7 +60,7 @@ export class RadioComponent {
 
   readonly autofocus = input<boolean>(false);
 
-  private readonly id = `vt-radio-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-radio')();
 
   constructor() {
     effect(() => {

@@ -5,7 +5,8 @@ import { TestBed } from '@angular/core/testing';
 import { writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ImageComponent } from './image.component';
+import { ImageComponent, autoImageProtocol } from './image.component';
+import type { TerminalCapabilities } from '../../services/terminal.service';
 import { RenderService } from '../../services/render.service';
 import { TerminalService } from '../../services/terminal.service';
 import { InputService } from '../../services/input.service';
@@ -13,11 +14,12 @@ import { FocusService } from '../../services/focus.service';
 import { provideClickService } from '../../services/click.service';
 import { provideKeymapService } from '../../services/keymap.service';
 import { MouseService } from '../../services/mouse.service';
+import { cleanupDom } from '../../testing/cleanup-dom';
 
 @Component({
   selector: 'vt-image-host',
   imports: [ImageComponent],
-  template: `<vt-image [src]="src()" [width]="4" [height]="2"></vt-image>`,
+  template: `<vt-image [src]="src()" [width]="4" [height]="2" protocol="iterm2"></vt-image>`,
 })
 class ImageHostComponent {
   readonly src = signal('');
@@ -43,6 +45,7 @@ describe('ImageComponent', () => {
     });
     terminal = TestBed.inject(TerminalService);
     vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
+    cleanupDom();
     dir = mkdtempSync(join(tmpdir(), 'vt-image-'));
   });
 
@@ -55,11 +58,17 @@ describe('ImageComponent', () => {
     writeFileSync(path, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 
     const fixture = TestBed.createComponent(ImageHostComponent);
+    (fixture.nativeElement as HTMLElement).id = 'vt-root';
     fixture.componentInstance.src.set(path);
     fixture.detectChanges();
     await new Promise((r) => setTimeout(r, 0));
+    // The image is emitted after the next layout pass so it can be placed at
+    // the component's cell position.
+    TestBed.inject(RenderService).flush();
 
-    const writes = (terminal.write as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0])).join('');
+    const writes = (terminal.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c) => String(c[0]))
+      .join('');
     expect(writes).toContain('\x1b]1337;File=inline=1');
     // 4 cols * 8 px, 2 rows * 16 px
     expect(writes).toContain('width=32px');
@@ -79,5 +88,34 @@ describe('ImageComponent', () => {
     expect(image.getAttribute('width')).toBe('4');
     expect(image.getAttribute('height')).toBe('2');
     expect(image.getAttribute('content')).toContain('[image:');
+  });
+});
+
+describe('autoImageProtocol', () => {
+  const caps = (termProgram: string, term: string): TerminalCapabilities => ({
+    colors: 'truecolor',
+    unicode: true,
+    isTTY: true,
+    termProgram,
+    term,
+  });
+
+  it('prefers iterm2 for iTerm.app', () => {
+    expect(autoImageProtocol(caps('iTerm.app', 'xterm-256color'))).toBe('iterm2');
+  });
+
+  it('prefers kitty for kitty/wezterm/ghostty', () => {
+    expect(autoImageProtocol(caps('', 'xterm-kitty'))).toBe('kitty');
+    expect(autoImageProtocol(caps('WezTerm', 'xterm-256color'))).toBe('kitty');
+    expect(autoImageProtocol(caps('ghostty', 'xterm-256color'))).toBe('kitty');
+  });
+
+  it('prefers sixel for foot/xterm-style terminals', () => {
+    expect(autoImageProtocol(caps('foot', 'foot'))).toBe('sixel');
+    expect(autoImageProtocol(caps('', 'xterm-256color'))).toBe('sixel');
+  });
+
+  it('falls back to iterm2 for unknown terminals', () => {
+    expect(autoImageProtocol(caps('', 'dumb'))).toBe('iterm2');
   });
 });

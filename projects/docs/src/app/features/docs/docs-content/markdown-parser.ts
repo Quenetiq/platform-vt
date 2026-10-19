@@ -221,7 +221,11 @@ function parseInline(text: string): MdInline[] {
       if (altEnd !== -1 && altEnd + 1 < text.length && text[altEnd + 1] === '(') {
         const urlEnd = text.indexOf(')', altEnd + 2);
         if (urlEnd !== -1) {
-          result.push({ type: 'image', alt: text.slice(i + 2, altEnd), src: text.slice(altEnd + 2, urlEnd) });
+          result.push({
+            type: 'image',
+            alt: text.slice(i + 2, altEnd),
+            src: text.slice(altEnd + 2, urlEnd),
+          });
           i = urlEnd + 1;
           continue;
         }

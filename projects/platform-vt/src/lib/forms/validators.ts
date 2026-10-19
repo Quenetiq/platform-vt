@@ -9,6 +9,54 @@
 /** Returns an error message when the value is invalid, or `null` when valid. */
 export type ValidatorFn = (value: string) => string | null;
 
+/**
+ * Asynchronous validator (e.g. a server-side uniqueness check).
+ *
+ * Returns a promise resolving to an error message or `null`.
+ */
+export type AsyncValidatorFn = (value: string) => Promise<string | null>;
+
+/** Combine several async validators; the first failing one produces the error. */
+export function composeAsync(...validators: AsyncValidatorFn[]): AsyncValidatorFn {
+  return async (value: string): Promise<string | null> => {
+    for (const validator of validators) {
+      const error = await validator(value);
+      if (error !== null) return error;
+    }
+    return null;
+  };
+}
+
+/**
+ * Debounce an async validator.
+ *
+ * The wrapped validator is called only after `delayMs` of inactivity; when a
+ * newer value arrives first, the pending call is dropped.
+ */
+export function debouncedAsync(
+  validator: AsyncValidatorFn,
+  delayMs = 300,
+): AsyncValidatorFn {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { resolve: (value: string | null) => void; reject: (reason: unknown) => void } | null =
+    null;
+
+  return (value: string): Promise<string | null> =>
+    new Promise((resolve, reject) => {
+      if (timer) clearTimeout(timer);
+      // A superseded call resolves as valid; only the latest value is checked.
+      pending?.resolve(null);
+      pending = { resolve, reject };
+      timer = setTimeout(() => {
+        timer = null;
+        const current = pending;
+        pending = null;
+        if (!current) return;
+        validator(value).then(current.resolve, current.reject);
+      }, Math.max(0, delayMs));
+    });
+}
+
 /** Combine several validators; the first failing one produces the error. */
 export function compose(...validators: ValidatorFn[]): ValidatorFn {
   return (value: string): string | null => {

@@ -4,10 +4,7 @@ import { sixelEncode, sixelWrite, parsePpmP6 } from './sixel';
 describe('sixelEncode', () => {
   it('produces a DCS sequence with register definitions', () => {
     // 2x2 image: red, green / blue, white
-    const rgb = new Uint8Array([
-      255, 0, 0, 0, 255, 0,
-      0, 0, 255, 255, 255, 255,
-    ]);
+    const rgb = new Uint8Array([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]);
     const out = sixelWrite(2, 2, rgb);
     expect(out.startsWith('\x1bPq')).toBe(true);
     expect(out.endsWith('\x1b\\')).toBe(true);

@@ -52,8 +52,8 @@ describe('DialogService', () => {
     const terminal = TestBed.inject(TerminalService);
     vi.spyOn(terminal, 'write').mockImplementation(() => undefined);
 
-cleanupDom();
-        dialogs = TestBed.inject(DialogService);
+    cleanupDom();
+    dialogs = TestBed.inject(DialogService);
     focus = TestBed.inject(FocusService);
     input = TestBed.inject(InputService);
   });

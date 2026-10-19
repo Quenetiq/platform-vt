@@ -120,11 +120,7 @@ export function appendVTChild(parent: VTNode, child: VTNode): void {
  * @param refChild - The reference child (must be a child of parent).
  * @throws {Error} If refChild is not a child of parent.
  */
-export function insertVTBefore(
-  parent: VTNode,
-  newChild: VTNode,
-  refChild: VTNode,
-): void {
+export function insertVTBefore(parent: VTNode, newChild: VTNode, refChild: VTNode): void {
   if (refChild.parent !== parent) {
     throw new Error('refChild is not a child of parent');
   }

@@ -1,11 +1,4 @@
-import {
-  DestroyRef,
-  Directive,
-  ElementRef,
-  inject,
-  input,
-  type ComponentRef,
-} from '@angular/core';
+import { DestroyRef, Directive, ElementRef, inject, input, type ComponentRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { MouseService } from '../../services/mouse.service';

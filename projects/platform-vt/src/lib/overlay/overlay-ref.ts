@@ -159,7 +159,8 @@ export class OverlayRef {
     offsetX = 0,
     offsetY = 0,
   ): void {
-    const resolve: () => LayoutRect | null = typeof rect === 'function' ? rect : (): LayoutRect => rect;
+    const resolve: () => LayoutRect | null =
+      typeof rect === 'function' ? rect : (): LayoutRect => rect;
     this.anchor = { rect: resolve, placement, offsetX, offsetY };
     this.fixed = null;
     this.renderService.scheduleRender();
@@ -212,7 +213,10 @@ export class OverlayRef {
 
     const left = String(target.x);
     const top = String(target.y);
-    if (this.hostElement.getAttribute('left') === left && this.hostElement.getAttribute('top') === top) {
+    if (
+      this.hostElement.getAttribute('left') === left &&
+      this.hostElement.getAttribute('top') === top
+    ) {
       return;
     }
 

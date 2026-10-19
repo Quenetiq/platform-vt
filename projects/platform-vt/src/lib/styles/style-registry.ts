@@ -22,13 +22,10 @@ export interface VTStyleReader {
  * registering styles later (e.g. after an async `stylesUrl` load) retriggers
  * component render effects automatically.
  */
-export const STYLE_READER = new InjectionToken<VTStyleReader>(
-  'VT_STYLE_READER',
-  {
-    providedIn: 'root',
-    factory: (): StyleRegistry => inject(StyleRegistry),
-  },
-);
+export const STYLE_READER = new InjectionToken<VTStyleReader>('VT_STYLE_READER', {
+  providedIn: 'root',
+  factory: (): StyleRegistry => inject(StyleRegistry),
+});
 
 /**
  * Registry of theme styles, keyed by component selector or class name.
@@ -123,9 +120,7 @@ export class StyleRegistry {
  * el.setAttribute('color', String(t.color));
  * ```
  */
-export function mergeTheme<
-  const T extends Record<string, { value: unknown; default: unknown }>,
->(
+export function mergeTheme<const T extends Record<string, { value: unknown; default: unknown }>>(
   registry: VTStyleReader | null | undefined,
   selector: string,
   inputs: T,

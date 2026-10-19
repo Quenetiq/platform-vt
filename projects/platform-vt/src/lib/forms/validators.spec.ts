@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { compose, required, minLength, maxLength, pattern, email, min, max, equals } from './validators';
+import {
+  compose,
+  composeAsync,
+  debouncedAsync,
+  required,
+  minLength,
+  maxLength,
+  pattern,
+  email,
+  min,
+  max,
+  equals,
+} from './validators';
 
 describe('validators', () => {
   it('required rejects empty and whitespace-only values', () => {
@@ -49,5 +61,30 @@ describe('validators', () => {
   it('custom messages', () => {
     expect(required('Name is required')('')).toBe('Name is required');
     expect(pattern(/^\d+$/, 'Digits only')('abc')).toBe('Digits only');
+  });
+
+  it('composeAsync stops at the first failing async validator', async () => {
+    const v = composeAsync(
+      (value: string): Promise<string | null> =>
+        Promise.resolve(value.length < 3 ? 'too short' : null),
+      (value: string): Promise<string | null> =>
+        Promise.resolve(value === 'taken' ? 'taken' : null),
+    );
+    await expect(v('ab')).resolves.toBe('too short');
+    await expect(v('taken')).resolves.toBe('taken');
+    await expect(v('okay')).resolves.toBeNull();
+  });
+
+  it('debouncedAsync only runs the latest value', async () => {
+    const calls: string[] = [];
+    const v = debouncedAsync((value: string): Promise<string | null> => {
+      calls.push(value);
+      return Promise.resolve(null);
+    }, 5);
+
+    const first = v('a');
+    const second = v('b');
+    await Promise.all([first, second]);
+    expect(calls).toEqual(['b']);
   });
 });

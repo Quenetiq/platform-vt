@@ -16,13 +16,7 @@ import type { VTClickEvent } from './sgr-mouse';
   selector: 'vt-click-test-app',
   imports: [ClickableDirective],
   template: `
-    <div
-      vt-clickable
-      (clicked)="record($event)"
-      width="20"
-      height="3"
-      content="Click me"
-    ></div>
+    <div vt-clickable (clicked)="record($event)" width="20" height="3" content="Click me"></div>
   `,
 })
 class ClickTestApp {

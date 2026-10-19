@@ -35,6 +35,7 @@ export const PROPERTY_MAP: Record<string, string> = {
   'flex-grow': 'flexGrow',
   'flex-shrink': 'flexShrink',
   'flex-basis': 'flexBasis',
+  'grid-template-columns': 'gridTemplateColumns',
   'justify-content': 'justifyContent',
   'align-items': 'alignItems',
   'align-self': 'alignSelf',

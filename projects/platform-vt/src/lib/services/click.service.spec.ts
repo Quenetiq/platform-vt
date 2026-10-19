@@ -47,7 +47,9 @@ describe('hitTestClickable', () => {
     const layout = new FlexLayout().calculate(root, 20, 10);
 
     expect(hitTestClickable(layout, 1, 0, CLICK_ATTR)?.vtNode.styles.get(CLICK_ATTR)).toBe('inner');
-    expect(hitTestClickable(layout, 10, 0, CLICK_ATTR)?.vtNode.styles.get(CLICK_ATTR)).toBe('outer');
+    expect(hitTestClickable(layout, 10, 0, CLICK_ATTR)?.vtNode.styles.get(CLICK_ATTR)).toBe(
+      'outer',
+    );
   });
 
   it('falls back to a clickable ancestor when the child is not clickable', () => {

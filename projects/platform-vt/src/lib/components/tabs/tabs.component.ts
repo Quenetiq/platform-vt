@@ -1,4 +1,14 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { InputService } from '../../services/input.service';
@@ -7,8 +17,7 @@ import { RenderService } from '../../services/render.service';
 import { ClickService } from '../../services/click.service';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
 import { vimTranslate } from '../../keymaps/vim.presets';
-
-let nextId = 0;
+import { createIdGenerator } from '../../cdk/dom';
 
 /**
  * A tab strip with keyboard and mouse navigation.
@@ -45,7 +54,7 @@ export class TabsComponent {
   /** Enable vim-style navigation (`h`/`l` switch tabs). */
   readonly vim = input<boolean>(false);
 
-  private readonly id = `vt-tabs-${String(nextId++)}`;
+  private readonly id = createIdGenerator('vt-tabs')();
 
   constructor() {
     effect(() => {

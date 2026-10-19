@@ -4,7 +4,14 @@ import type { LayoutNode } from '../layout/layout-node';
 import type { VTNode } from '../renderer/vt-node';
 import { createVTNode, appendVTChild, resetVTNodeId } from '../renderer/vt-node';
 
-function layoutNode(vtNode: VTNode, x = 0, y = 0, width = 10, height = 1, children: LayoutNode[] = []): LayoutNode {
+function layoutNode(
+  vtNode: VTNode,
+  x = 0,
+  y = 0,
+  width = 10,
+  height = 1,
+  children: LayoutNode[] = [],
+): LayoutNode {
   return { vtNode, x, y, width, height, children };
 }
 
@@ -59,7 +66,9 @@ describe('TerminalOutput', () => {
 
     const start = written.length;
     text.textContent = 'frame2';
-    output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(text, 0, 0, 6, 1)]), 80, 24, { clear: false });
+    output.render(layoutNode(root, 0, 0, 80, 24, [layoutNode(text, 0, 0, 6, 1)]), 80, 24, {
+      clear: false,
+    });
     output.flush();
     const second = written.slice(start).join('');
 
@@ -83,10 +92,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, b);
 
     output.render(
-      layoutNode(root, 0, 0, 80, 24, [
-        layoutNode(a, 2, 3, 5, 1),
-        layoutNode(b, 8, 3, 5, 1),
-      ]),
+      layoutNode(root, 0, 0, 80, 24, [layoutNode(a, 2, 3, 5, 1), layoutNode(b, 8, 3, 5, 1)]),
       80,
       24,
     );
@@ -121,10 +127,7 @@ describe('TerminalOutput', () => {
     appendVTChild(root, b);
 
     output.render(
-      layoutNode(root, 0, 0, 80, 24, [
-        layoutNode(a, 0, 0, 3, 1),
-        layoutNode(b, 4, 0, 2, 1),
-      ]),
+      layoutNode(root, 0, 0, 80, 24, [layoutNode(a, 0, 0, 3, 1), layoutNode(b, 4, 0, 2, 1)]),
       80,
       24,
     );

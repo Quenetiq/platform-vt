@@ -1,8 +1,18 @@
-import { Component, inject, input, output, signal, effect, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  inject,
+  input,
+  output,
+  signal,
+  effect,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { InputService } from '../../services/input.service';
 import { RenderService } from '../../services/render.service';
 import { fuzzyRank } from '../../utils/fuzzy';
+import { setCellText, syncChildren } from '../../cdk/dom';
 
 /** A command shown in the palette. */
 export interface PaletteCommand {
@@ -12,8 +22,19 @@ export interface PaletteCommand {
   keywords?: string;
   /** Shortcut hint shown on the right, e.g. `'Ctrl+S'`. */
   hint?: string;
+  /** Optional group heading; commands are listed under their category. */
+  category?: string;
   /** Executed when the command is activated. */
   action: () => void;
+}
+
+/** A rendered row of the palette list: a category header or a command. */
+interface PaletteRow {
+  kind: 'header' | 'item';
+  text: string;
+  /** Set for item rows: the command and its flat index in the result list. */
+  item?: PaletteCommand;
+  itemIndex?: number;
 }
 
 /**
@@ -45,9 +66,12 @@ export class PaletteComponent {
     effect(() => {
       const el = this.elementRef.nativeElement as HTMLElement;
       const query = this.query();
-      const results = this.results();
+      const rows = this.rows();
       const active = this.activeIndex();
-      const longest = Math.max(0, ...results.map((cmd) => cmd.title.length));
+      const longest = Math.max(
+        0,
+        ...rows.filter((r) => r.kind === 'item').map((r) => r.text.length),
+      );
 
       el.setAttribute('display', 'flex');
       el.setAttribute('flex-direction', 'column');
@@ -85,13 +109,17 @@ export class PaletteComponent {
       const after = document.createElement('span');
       after.setAttribute('display', 'block');
       after.setAttribute('flex-shrink', '0');
-      after.setAttribute('content', query.length > 0 ? query.substring(0, query.length - 1) : this.placeholder());
-      after.textContent = query.length > 0 ? query.substring(0, query.length - 1) : this.placeholder();
+      after.setAttribute(
+        'content',
+        query.length > 0 ? query.substring(0, query.length - 1) : this.placeholder(),
+      );
+      after.textContent =
+        query.length > 0 ? query.substring(0, query.length - 1) : this.placeholder();
       if (query.length === 0) after.setAttribute('opacity', 'dim');
       row.appendChild(after);
 
       const list = el.querySelector<HTMLElement>('.vt-palette-list');
-      if (results.length === 0) {
+      if (rows.length === 0) {
         list?.remove();
       } else {
         let listEl = list;
@@ -103,76 +131,70 @@ export class PaletteComponent {
           listEl.setAttribute('flex-shrink', '0');
           el.appendChild(listEl);
         }
-        while (listEl.children.length < results.length) {
-          const item = document.createElement('span');
-          item.setAttribute('display', 'flex');
-          item.setAttribute('flex-direction', 'row');
-          item.setAttribute('flex-shrink', '0');
-          item.setAttribute('min-height', '1');
-          listEl.appendChild(item);
-        }
-        while (listEl.children.length > results.length) {
-          listEl.lastElementChild?.remove();
-        }
-        for (let i = 0; i < results.length; i++) {
-          const item = results[i]!;
-          const itemEl = listEl.children[i] as HTMLElement;
-          const text = item.hint
-            ? `${item.title}${' '.repeat(Math.max(1, longest - item.title.length + 2))}${item.hint}`
-            : item.title;
-          itemEl.setAttribute('content', text);
-          itemEl.textContent = text;
-          if (i === active) {
-            itemEl.setAttribute('color', 'bright-white');
-            itemEl.setAttribute('inverse', 'true');
+        const rowEls = syncChildren(listEl, rows.length, 'span', {
+          display: 'flex',
+          'flex-direction': 'row',
+          'flex-shrink': '0',
+          'min-height': '1',
+        });
+        for (let i = 0; i < rows.length; i++) {
+          const rowEl = rowEls[i]!;
+          const paletteRow = rows[i]!;
+          setCellText(rowEl, paletteRow.text);
+          if (paletteRow.kind === 'header') {
+            rowEl.setAttribute('color', 'gray');
+            rowEl.setAttribute('opacity', 'dim');
+            rowEl.removeAttribute('inverse');
+          } else if (paletteRow.itemIndex === active) {
+            rowEl.setAttribute('color', 'bright-white');
+            rowEl.setAttribute('inverse', 'true');
+            rowEl.removeAttribute('opacity');
           } else {
-            itemEl.removeAttribute('color');
-            itemEl.removeAttribute('inverse');
-            if (item.hint) itemEl.setAttribute('color', 'gray');
+            rowEl.removeAttribute('color');
+            rowEl.removeAttribute('inverse');
+            if (paletteRow.item?.hint) rowEl.setAttribute('color', 'gray');
           }
         }
       }
       this.renderService.scheduleRender();
     });
 
-    this.inputService.keyEvents
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
-        const results = this.results();
-        switch (event.name) {
-          case 'down':
-            if (results.length > 0) {
-              this.activeIndex.update((i) => (i >= results.length - 1 ? 0 : i + 1));
-            }
-            break;
-          case 'up':
-            if (results.length > 0) {
-              this.activeIndex.update((i) => (i <= 0 ? results.length - 1 : i - 1));
-            }
-            break;
-          case 'return':
-          case 'tab':
-            if (results.length > 0) {
-              const command = results[Math.min(this.activeIndex(), results.length - 1)]!;
-              this.selected.emit(command);
-            }
-            break;
-          case 'escape':
-            this.cancelled.emit();
-            break;
-          case 'backspace':
-            this.query.update((q) => q.substring(0, q.length - 1));
+    this.inputService.keyEvents.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      const results = this.results();
+      switch (event.name) {
+        case 'down':
+          if (results.length > 0) {
+            this.activeIndex.update((i) => (i >= results.length - 1 ? 0 : i + 1));
+          }
+          break;
+        case 'up':
+          if (results.length > 0) {
+            this.activeIndex.update((i) => (i <= 0 ? results.length - 1 : i - 1));
+          }
+          break;
+        case 'return':
+        case 'tab':
+          if (results.length > 0) {
+            const command = results[Math.min(this.activeIndex(), results.length - 1)]!;
+            this.selected.emit(command);
+          }
+          break;
+        case 'escape':
+          this.cancelled.emit();
+          break;
+        case 'backspace':
+          this.query.update((q) => q.substring(0, q.length - 1));
+          this.activeIndex.set(0);
+          break;
+        default:
+          if (event.name.length === 1 && event.name.charCodeAt(0) >= 32 && !event.ctrl) {
+            this.query.update((q) => q + event.name);
             this.activeIndex.set(0);
-            break;
-          default:
-            if (event.name.length === 1 && event.name.charCodeAt(0) >= 32 && !event.ctrl) {
-              this.query.update((q) => q + event.name);
-              this.activeIndex.set(0);
-            }
-            break;
-        }
-        this.renderService.scheduleRender();
-      });
+          }
+          break;
+      }
+      this.renderService.scheduleRender();
+    });
   }
 
   /** Commands matching the query, ranked by fuzzy relevance. */
@@ -180,9 +202,47 @@ export class PaletteComponent {
     const commands = this.commands();
     const query = this.query();
     if (query.length === 0) return commands.slice(0, 10);
-    const ranked = fuzzyRank(query, commands.map((cmd) => `${cmd.title} ${cmd.keywords ?? ''}`), 10);
+    const searchText = (cmd: PaletteCommand): string =>
+      `${cmd.title} ${cmd.keywords ?? ''} ${cmd.category ?? ''}`.trim();
+    const ranked = fuzzyRank(query, commands.map(searchText), 10);
     return ranked
-      .map((text) => commands.find((cmd) => `${cmd.title} ${cmd.keywords ?? ''}` === text))
+      .map((text) => commands.find((cmd) => searchText(cmd) === text))
       .filter((cmd): cmd is PaletteCommand => cmd !== undefined);
+  }
+
+  /** Category-grouped rows: headers between the commands, in first-appearance order. */
+  private rows(): PaletteRow[] {
+    const commands = this.results();
+    const byCategory = new Map<string, PaletteCommand[]>();
+    const order: string[] = [];
+    let itemIndex = 0;
+    const rows: PaletteRow[] = [];
+
+    for (const command of commands) {
+      const category = command.category ?? '';
+      if (!byCategory.has(category)) {
+        byCategory.set(category, []);
+        order.push(category);
+      }
+      byCategory.get(category)!.push(command);
+    }
+
+    for (const category of order) {
+      if (category.length > 0) {
+        rows.push({ kind: 'header', text: `\u2500 ${category}` });
+      }
+      for (const item of byCategory.get(category)!) {
+        const hint = item.hint
+          ? ' '.repeat(Math.max(1, this.longestTitle(commands) - item.title.length + 2)) + item.hint
+          : '';
+        rows.push({ kind: 'item', text: `${item.title}${hint}`, item, itemIndex });
+        itemIndex++;
+      }
+    }
+    return rows;
+  }
+
+  private longestTitle(commands: PaletteCommand[]): number {
+    return Math.max(0, ...commands.map((cmd) => cmd.title.length));
   }
 }

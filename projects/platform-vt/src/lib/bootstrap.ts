@@ -20,6 +20,7 @@ import { provideDragService } from './services/drag.service';
 import { provideCommandPalette } from './services/command-palette.service';
 import { DialogService } from './overlay/dialog.service';
 import { MenuService } from './components/menu/menu.component';
+import { ThemeService } from './services/theme.service';
 
 export interface TerminalBootstrapOptions extends ApplicationConfig {
   /**
@@ -48,6 +49,59 @@ export interface TerminalBootstrapOptions extends ApplicationConfig {
    * Defaults to `true`.
    */
   bracketedPaste?: boolean;
+
+  /**
+   * Opt into the kitty keyboard protocol (disambiguated key events with
+   * explicit modifiers, via {@link InputService.enableKittyKeyboard}).
+   * Terminals without support are detected by the query response and keep
+   * using legacy key encodings. Defaults to `true`.
+   */
+  kittyKeyboard?: boolean;
+
+  /**
+   * Emit OSC 133 shell-integration markers: a prompt/command/output start
+   * on boot and a command end on exit. Terminals with shell integration
+   * (kitty, wezterm, tmux, iTerm2) then let the user jump between the app's
+   * runs in the scrollback. Defaults to `true`.
+   */
+  shellIntegration?: boolean;
+
+  /**
+   * Enable synchronized output (`CSI ?2026h`): each render pass is painted
+   * as one atomic frame instead of a sequence of partial redraws, removing
+   * flicker. Unsupported terminals ignore the sequence. Defaults to `true`.
+   */
+  synchronizedOutput?: boolean;
+
+  /**
+   * Enable terminal focus reporting (`CSI ?1004h`): the terminal reports
+   * when it gains/loses focus, exposed as `focusEvents` on
+   * {@link InputService}. Apps use it to pause animations or reset hover
+   * state. Defaults to `false`.
+   */
+  focusReporting?: boolean;
+
+  /**
+   * Query kitty graphics protocol support at startup (via
+   * {@link InputService.queryKittyGraphics}); the result is exposed on
+   * `kittyGraphics` and used by `vt-image`'s protocol auto-selection.
+   * Defaults to `true`.
+   */
+  kittyGraphicsQuery?: boolean;
+
+  /**
+   * Set the terminal window title on startup (OSC 2). The previous title is
+   * restored on {@link TerminalService.cleanup}.
+   */
+  terminalTitle?: string;
+
+  /**
+   * Ask the terminal for its default foreground/background colors (OSC 10/11)
+   * and derive the light/dark scheme via {@link ThemeService}. Defaults to
+   * `true` on a real TTY; terminals that do not answer keep the
+   * environment-based guess.
+   */
+  autoTheme?: boolean;
 
   /**
    * Exit gracefully (restore the terminal, then `process.exit`) on SIGINT,
@@ -122,6 +176,7 @@ export function bootstrapTerminal(
     provideCommandPalette(),
     DialogService,
     MenuService,
+    ThemeService,
     provideZonelessChangeDetection(),
     ...(options?.providers ?? []),
   ];
@@ -134,13 +189,39 @@ export function bootstrapTerminal(
   return bootstrapApplication(rootComponent, config, context).then((appRef) => {
     const terminal = appRef.injector.get(TerminalService);
 
+    if (options?.terminalTitle) {
+      terminal.pushTitle();
+      terminal.setTitle(options.terminalTitle);
+    }
+
     const bg = options?.terminalBackground;
     if (bg) terminal.write(`\x1b]11;${toHexColor(bg)}\x07`);
     const fg = options?.terminalForeground;
     if (fg) terminal.write(`\x1b]10;${toHexColor(fg)}\x07`);
 
+    if (options?.autoTheme !== false && terminal.capabilities().isTTY) {
+      void appRef.injector.get(ThemeService).query();
+    }
+
     if (options?.useAltScreen) terminal.enterAltScreen();
     if (options?.bracketedPaste !== false) terminal.enableBracketedPaste();
+    if (options?.kittyKeyboard !== false) {
+      appRef.injector.get(InputService).enableKittyKeyboard();
+    }
+    if (options?.shellIntegration !== false) {
+      terminal.markPromptStart();
+      terminal.markCommandStart();
+      terminal.markCommandOutputStart();
+    }
+    if (options?.synchronizedOutput !== false) {
+      terminal.enableSynchronizedOutput();
+    }
+    if (options?.focusReporting === true) {
+      terminal.enableFocusReporting();
+    }
+    if (options?.kittyGraphicsQuery !== false) {
+      appRef.injector.get(InputService).queryKittyGraphics();
+    }
 
     const render = appRef.injector.get(RenderService);
     render.scheduleRender();
@@ -149,7 +230,7 @@ export function bootstrapTerminal(
     terminal.onResize(() => render.scheduleRender());
 
     if (options?.gracefulExit !== false && typeof process !== 'undefined') {
-      registerExitHandlers(terminal);
+      registerExitHandlers(terminal, options?.shellIntegration !== false);
     }
 
     return appRef;
@@ -162,12 +243,13 @@ export function bootstrapTerminal(
  * Registers handlers for SIGINT/SIGTERM/SIGQUIT (clean up, then exit) and a
  * plain `exit` hook for normal termination. Idempotent.
  */
-function registerExitHandlers(terminal: TerminalService): void {
+function registerExitHandlers(terminal: TerminalService, shellMarks: boolean): void {
   let registered = false;
   if (registered) return;
   registered = true;
 
   const exit = (code: number): never => {
+    if (shellMarks) terminal.markCommandEnd(0);
     terminal.cleanup();
     process.exit(code);
   };

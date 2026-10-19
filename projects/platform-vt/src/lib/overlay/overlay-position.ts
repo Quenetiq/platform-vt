@@ -61,11 +61,17 @@ export function computeOverlayPosition(
 
   // Flip when the panel would overflow the opposite viewport edge.
   if (viewport.width > 0 && viewport.height > 0) {
-    if (placement === 'bottom' && rect.y + rect.height + viewport.height + anchor.offsetY > viewport.rows) {
+    if (
+      placement === 'bottom' &&
+      rect.y + rect.height + viewport.height + anchor.offsetY > viewport.rows
+    ) {
       placement = 'top';
     } else if (placement === 'top' && rect.y - viewport.height - anchor.offsetY < 0) {
       placement = 'bottom';
-    } else if (placement === 'right' && rect.x + rect.width + viewport.width + anchor.offsetX > viewport.columns) {
+    } else if (
+      placement === 'right' &&
+      rect.x + rect.width + viewport.width + anchor.offsetX > viewport.columns
+    ) {
       placement = 'left';
     } else if (placement === 'left' && rect.x - viewport.width - anchor.offsetX < 0) {
       placement = 'right';

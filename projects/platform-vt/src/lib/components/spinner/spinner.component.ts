@@ -1,4 +1,12 @@
-import { Component, input, signal, inject, effect, type OnDestroy, ElementRef } from '@angular/core';
+import {
+  Component,
+  input,
+  signal,
+  inject,
+  effect,
+  type OnDestroy,
+  ElementRef,
+} from '@angular/core';
 import { STYLE_READER, type VTStyleReader } from '../../styles/style-registry';
 
 const FRAMES: Record<string, string[]> = {
@@ -23,7 +31,7 @@ export class SpinnerComponent implements OnDestroy {
 
   constructor() {
     this.intervalId = setInterval(() => {
-      this.frame.update(f => f + 1);
+      this.frame.update((f) => f + 1);
     }, 100);
 
     effect(() => {

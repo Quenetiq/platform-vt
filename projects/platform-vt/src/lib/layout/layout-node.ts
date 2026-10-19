@@ -37,12 +37,7 @@ export interface FlexStyles {
   flexDirection: 'row' | 'column';
   /** Main-axis alignment. */
   justifyContent:
-    | 'flex-start'
-    | 'center'
-    | 'flex-end'
-    | 'space-between'
-    | 'space-around'
-    | 'space-evenly';
+    'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
   /** Cross-axis alignment. */
   alignItems: 'flex-start' | 'center' | 'flex-end' | 'stretch';
   /** Per-child cross-axis alignment override. */

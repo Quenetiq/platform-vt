@@ -1,4 +1,12 @@
-import { Component, input, signal, inject, effect, type OnDestroy, ElementRef } from '@angular/core';
+import {
+  Component,
+  input,
+  signal,
+  inject,
+  effect,
+  type OnDestroy,
+  ElementRef,
+} from '@angular/core';
 import { RenderService } from '../../services/render.service';
 import { STYLE_READER, mergeTheme, type VTStyleReader } from '../../styles/style-registry';
 
@@ -36,11 +44,16 @@ export class CaretComponent implements OnDestroy {
       el.setAttribute('flex-shrink', '0');
       el.setAttribute('min-height', '1');
       el.setAttribute('content', g);
-      const t = mergeTheme(this.styleReader, 'vt-caret', {
-        glyph: { value: this.glyph(), default: '\u258C' },
-        color: { value: this.color(), default: 'cyan' },
-        backgroundColor: { value: this.backgroundColor(), default: '' },
-      }, (el.getAttribute('class')?.split(/\s+/) ?? []));
+      const t = mergeTheme(
+        this.styleReader,
+        'vt-caret',
+        {
+          glyph: { value: this.glyph(), default: '\u258C' },
+          color: { value: this.color(), default: 'cyan' },
+          backgroundColor: { value: this.backgroundColor(), default: '' },
+        },
+        el.getAttribute('class')?.split(/\s+/) ?? [],
+      );
       el.setAttribute('color', String(t.color));
       el.setAttribute('background-color', String(t.backgroundColor));
       this.renderService.scheduleRender();

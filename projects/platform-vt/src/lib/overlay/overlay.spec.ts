@@ -58,8 +58,8 @@ describe('overlay (CDK)', () => {
     overlay = TestBed.inject(OverlayService);
     container = TestBed.inject(OverlayContainer);
 
-cleanupDom();
-        (fixture.nativeElement as HTMLElement).id = 'vt-root';
+    cleanupDom();
+    (fixture.nativeElement as HTMLElement).id = 'vt-root';
   });
 
   it('creates a panel in the overlay layer', () => {

@@ -9,10 +9,7 @@
         <ul class="group-items">
           @for (item of group.items; track item.slug) {
             <li>
-              <a
-                class="sidebar-link"
-                [routerLink]="['/', item.slug]"
-                routerLinkActive="active">
+              <a class="sidebar-link" [routerLink]="['/', item.slug]" routerLinkActive="active">
                 {{ item.title }}
               </a>
             </li>

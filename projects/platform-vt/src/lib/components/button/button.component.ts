@@ -1,4 +1,14 @@
-import { Component, input, output, signal, inject, effect, afterNextRender, ElementRef, DestroyRef } from '@angular/core';
+import {
+  Component,
+  input,
+  output,
+  signal,
+  inject,
+  effect,
+  afterNextRender,
+  ElementRef,
+  DestroyRef,
+} from '@angular/core';
 import { InputService } from '../../services/input.service';
 import { FocusService } from '../../services/focus.service';
 import { RenderService } from '../../services/render.service';

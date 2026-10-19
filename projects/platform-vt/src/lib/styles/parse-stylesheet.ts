@@ -77,9 +77,7 @@ function parseRule(block: string): VTStyleRule | null {
 
 function isValidSelector(selector: string): boolean {
   return (
-    selector === '*' ||
-    /^[a-zA-Z][\w-]*$/.test(selector) ||
-    /^\.[a-zA-Z][\w-]*$/.test(selector)
+    selector === '*' || /^[a-zA-Z][\w-]*$/.test(selector) || /^\.[a-zA-Z][\w-]*$/.test(selector)
   );
 }
 

@@ -9,41 +9,43 @@ export interface DomLayoutNode {
 // Map HTML attribute names to layout engine style names
 const ATTR_MAP: Record<string, string> = {
   'flex-direction': 'flexDirection',
-  'flexdirection': 'flexDirection',
+  flexdirection: 'flexDirection',
   'flex-grow': 'flexGrow',
-  'flexgrow': 'flexGrow',
+  flexgrow: 'flexGrow',
   'flex-shrink': 'flexShrink',
-  'flexshrink': 'flexShrink',
+  flexshrink: 'flexShrink',
   'justify-content': 'justifyContent',
-  'justifycontent': 'justifyContent',
+  justifycontent: 'justifyContent',
   'align-items': 'alignItems',
-  'alignitems': 'alignItems',
+  alignitems: 'alignItems',
   'align-self': 'alignSelf',
-  'alignself': 'alignSelf',
+  alignself: 'alignSelf',
   'text-align': 'textAlign',
-  'textalign': 'textAlign',
+  textalign: 'textAlign',
   'background-color': 'backgroundColor',
-  'backgroundcolor': 'backgroundColor',
+  backgroundcolor: 'backgroundColor',
   'font-weight': 'fontWeight',
-  'fontweight': 'fontWeight',
+  fontweight: 'fontWeight',
   'font-style': 'fontStyle',
-  'fontstyle': 'fontStyle',
+  fontstyle: 'fontStyle',
   'text-decoration': 'textDecoration',
-  'textdecoration': 'textDecoration',
+  textdecoration: 'textDecoration',
   'min-height': 'minHeight',
-  'minheight': 'minHeight',
+  minheight: 'minHeight',
   'min-width': 'minWidth',
-  'minwidth': 'minWidth',
+  minwidth: 'minWidth',
   'max-height': 'maxHeight',
-  'maxheight': 'maxHeight',
+  maxheight: 'maxHeight',
   'max-width': 'maxWidth',
-  'maxwidth': 'maxWidth',
+  maxwidth: 'maxWidth',
   'flex-basis': 'flexBasis',
-  'flexbasis': 'flexBasis',
+  flexbasis: 'flexBasis',
+  'grid-template-columns': 'gridTemplateColumns',
+  gridtemplatecolumns: 'gridTemplateColumns',
   'border-left': 'borderLeft',
-  'borderleft': 'borderLeft',
+  borderleft: 'borderLeft',
   'border-radius': 'borderRadius',
-  'borderradius': 'borderRadius',
+  borderradius: 'borderRadius',
 };
 
 export function readDomLayout(el: Element): DomLayoutNode {
@@ -51,17 +53,17 @@ export function readDomLayout(el: Element): DomLayoutNode {
   // Only use the explicit 'content' attribute, not inherited textContent from children
   const textContent = el.getAttribute('content') ?? '';
 
-    for (let i = 0; i < el.attributes.length; i++) {
-      const attr = el.attributes[i]!;
-      const rawName = attr.name;
-      const value = attr.value;
-      if (rawName.startsWith('_ng') || rawName === 'ng-version' || rawName === 'content') continue;
-      if (rawName === 'style') continue;
+  for (let i = 0; i < el.attributes.length; i++) {
+    const attr = el.attributes[i]!;
+    const rawName = attr.name;
+    const value = attr.value;
+    if (rawName.startsWith('_ng') || rawName === 'ng-version' || rawName === 'content') continue;
+    if (rawName === 'style') continue;
 
-      const name = ATTR_MAP[rawName] ?? rawName;
-      const num = Number(value);
-      styles.set(name, Number.isFinite(num) ? num : value);
-    }
+    const name = ATTR_MAP[rawName] ?? rawName;
+    const num = Number(value);
+    styles.set(name, Number.isFinite(num) ? num : value);
+  }
 
   // Do NOT parse CSS style attribute — only use explicit HTML attributes set by components
 

@@ -59,15 +59,13 @@ export class MouseService {
   private enabled = false;
 
   constructor() {
-    this.input.rawInput
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((data) => {
-        for (const sequence of extractSgrSequences(data)) {
-          const event = parseSgrMouse(sequence);
-          if (!event) continue;
-          this.handle(event);
-        }
-      });
+    this.input.rawInput.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((data) => {
+      for (const sequence of extractSgrSequences(data)) {
+        const event = parseSgrMouse(sequence);
+        if (!event) continue;
+        this.handle(event);
+      }
+    });
 
     this.destroyRef.onDestroy(() => {
       this.disable();

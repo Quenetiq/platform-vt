@@ -228,6 +228,17 @@ export class ScreenBuffer {
     }
     return lines.join('\n');
   }
+
+  /**
+   * Read a single cell of the current frame.
+   *
+   * Out-of-bounds coordinates return an empty cell (callers can iterate up
+   * to `width`/`height` without bounds checks).
+   */
+  getCell(x: number, y: number): Cell {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return emptyCell();
+    return this.cells[y * this.width + x] ?? emptyCell();
+  }
 }
 
 /** Whether two cells share every style field (fg, bg, decorations, link). */

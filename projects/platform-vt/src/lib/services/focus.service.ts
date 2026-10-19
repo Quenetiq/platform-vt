@@ -73,10 +73,7 @@ export class FocusService {
   constructor() {
     this.input.keyEvents
       .pipe(
-        filter(
-          (event): event is VTKeyEvent =>
-            event.name === 'tab' || event.name === 'shift-tab',
-        ),
+        filter((event): event is VTKeyEvent => event.name === 'tab' || event.name === 'shift-tab'),
         takeUntilDestroyed(),
       )
       .subscribe((event) => {
@@ -151,9 +148,7 @@ export class FocusService {
    * @returns Whether an element was focused.
    */
   focusIn(container: Element): boolean {
-    const first = this.focusables().find(
-      (f) => f.element && container.contains(f.element),
-    );
+    const first = this.focusables().find((f) => f.element && container.contains(f.element));
     if (!first) return false;
     this.focus(first.id);
     return true;
@@ -189,8 +184,7 @@ export class FocusService {
     const current = this.focused();
     if (current) current.onBlur();
 
-    const prevIndex =
-      (this.focusedIndex() - 1 + list.length) % list.length;
+    const prevIndex = (this.focusedIndex() - 1 + list.length) % list.length;
 
     const prev = list[prevIndex];
     this.focusedId.set(prev.id);
@@ -208,5 +202,12 @@ export class FocusService {
 
     this.focusedId.set(element.id);
     element.onFocus();
+  }
+
+  /** Clear focus entirely (nothing is focused afterwards). */
+  clearFocus(): void {
+    const current = this.focused();
+    if (current) current.onBlur();
+    this.focusedId.set(null);
   }
 }

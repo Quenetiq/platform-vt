@@ -2,75 +2,83 @@
 
 ## Quick Start
 
-Use the headless `renderCli()` helper to test components without a real terminal:
+Use the `renderComponent()` harness to mount a component as the terminal app
+root and inspect the painted screen:
 
 ```typescript
-import { renderCli } from '@quenetiq/platform-vt/testing';
+import { renderComponent } from '@quenetiq/platform-vt/testing';
 import { MyComponent } from './my.component';
 
-describe('MyComponent', () => {
-  it('renders text', async () => {
-    const { componentRef, flush } = await renderCli(MyComponent);
+it('renders text', async () => {
+  const view = await renderComponent(MyComponent, { columns: 40, rows: 10 });
 
-    // Trigger change detection
-    flush();
+  expect(view.text()).toContain('Hello');
 
-    // Inspect the VTNode tree
-    const root = componentRef.instance['rootNode']; // VTNode
-    expect(root.children.length).toBeGreaterThan(0);
-  });
+  view.dispose();
 });
 ```
 
-## renderCli
+## renderComponent
 
 ```typescript
-function renderCli(componentType: Type<unknown>): Promise<{
-  fixture: ComponentFixture<unknown>;
-  componentRef: ComponentRef<unknown>;
+function renderComponent<C>(
+  component: Type<C>,
+  options?: {
+    providers?: (Provider | EnvironmentProviders)[];
+    columns?: number; // default 80
+    rows?: number;    // default 24
+  },
+): Promise<{
+  fixture: ComponentFixture<C>;
+  render: RenderService;
+  terminal: TerminalService;
   flush: () => void;
-  destroy: () => void;
+  text: () => string;
+  dispose: () => void;
 }>;
 ```
 
 | Method | Description |
 |---|---|
-| `flush()` | Triggers Angular change detection + VTNode render |
-| `destroy()` | Cleans up the component and rendering context |
+| `flush()` | Runs a synchronous render pass |
+| `text()` | Painted frame text, trailing spaces trimmed per line |
+| `dispose()` | Destroys the fixture and removes global DOM artifacts |
+
+The harness marks the host element as `#vt-root`, installs the standard
+services (`TerminalService`, `RenderService`, `InputService`, `FocusService`,
+`MouseService`, `ClickService`) and uses zoneless change detection.
 
 ## Testing Components with Signals
 
 ```typescript
 it('responds to signal changes', async () => {
-  const { componentRef, flush } = await renderCli(CounterComponent);
+  const view = await renderComponent(CounterComponent);
+  const instance = view.fixture.componentInstance as CounterComponent;
 
-  // Access component instance and modify signals
-  const instance = componentRef.instance as CounterComponent;
   instance.count.set(5);
-  flush();
+  view.fixture.detectChanges();
+  view.flush();
 
-  // Verify output
-  const textNodes = findVTNodesByType(root, 'text');
-  expect(textNodes.some(n => n.textContent === '5')).toBe(true);
+  expect(view.text()).toContain('5');
 });
 ```
 
 ## Testing Interactions
 
+Use `InputService.simulateKey()` — no internal casts or synthetic escape
+sequences are needed:
+
 ```typescript
 import { FocusService, InputService } from '@quenetiq/platform-vt';
 
-it('focuses on Tab', async () => {
-  const { fixture, flush } = await renderCli(MyFormComponent);
+it('moves the selection with the arrow keys', async () => {
+  const view = await renderComponent(ListComponent);
+  const input = view.fixture.debugElement.injector.get(InputService);
 
-  const focusService = fixture.debugElement.injector.get(FocusService);
-  const inputService = fixture.debugElement.injector.get(InputService);
+  input.simulateKey({ name: 'down', ctrl: false, meta: false, shift: false, sequence: '' });
+  view.fixture.detectChanges();
 
-  // Simulate Tab key
-  inputService.keyEvents.emit({ name: 'tab', ctrl: false, meta: false, shift: false, sequence: '\t' });
-  flush();
-
-  expect(focusService.focusedId()).toBe('my-input');
+  expect(view.fixture.componentInstance.index()).toBe(1);
 });
 ```
 
