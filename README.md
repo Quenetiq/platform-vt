@@ -14,6 +14,7 @@ A custom Angular `Renderer2` library that renders Angular components to the **te
 - **Theming** — a lightweight `.vt` stylesheet DSL with `StyleRegistry` and CSS-like selectors.
 - **Tooling** — devtools overlay (`Ctrl+Shift+D`), session recorder, snapshots, benchmarks and a `renderComponent` test harness.
 - **Security** — control-character and bidi sanitization at the output boundary, OSC payload escaping, safe hyperlink schemes, image/clipboard size limits, prototype-pollution-safe persistence.
+- **Accessibility** — `NO_COLOR` / `FORCE_COLOR` monochrome mode, wide-character and RTL-aware rendering.
 
 ## Installation
 

@@ -20,6 +20,20 @@ theme.toggle();               // flip dark <-> light
 `bootstrapTerminal` provides `ThemeService` and queries it automatically on a
 real TTY (`autoTheme: false` disables this).
 
+## No-color mode
+
+Color output follows the standard environment variables:
+
+| Variable | Effect |
+|---|---|
+| `NO_COLOR` (set) | Disable all color codes (bold/underline still apply) |
+| `FORCE_COLOR=0` | Disable colors |
+| `FORCE_COLOR=1` | Force 16 colors |
+| `FORCE_COLOR=2` | Force 256 colors |
+| `FORCE_COLOR=3` | Force truecolor |
+
+`terminal.capabilities().colors` is `'none'` in monochrome mode.
+
 ## Title, notifications and progress
 
 ```typescript

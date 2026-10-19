@@ -1,5 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { resolveColor, wrapColor, resolveColorRgb, wrapColorRgb } from './color-map';
+import {
+  resolveColor,
+  wrapColor,
+  resolveColorRgb,
+  wrapColorRgb,
+  resolveColorAdaptive,
+  wrapColorAdaptive,
+} from './color-map';
+
+describe('adaptive color modes', () => {
+  it('disables color codes in none mode', () => {
+    expect(resolveColorAdaptive('red', 'fg', 'none')).toBeNull();
+    expect(resolveColorAdaptive('#ff8800', 'bg', 'none')).toBeNull();
+    expect(wrapColorAdaptive('hello', 'red', 'fg', 'none')).toBe('hello');
+  });
+
+  it('keeps adapting colors for explicit modes', () => {
+    expect(resolveColorAdaptive('red', 'fg', 16)).toBe('\x1b[31m');
+    expect(resolveColorAdaptive('#ff8800', 'fg', 256)).toContain('\x1b[38;5;');
+    expect(resolveColorAdaptive('#ff8800', 'fg', 'truecolor')).toBe('\x1b[38;2;255;136;0m');
+  });
+});
 
 describe('resolveColor', () => {
   it('resolves named fg colors', () => {

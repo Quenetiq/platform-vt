@@ -190,8 +190,11 @@ export function wrapColorRgb(text: string, name: string, type: 'fg' | 'bg'): str
 
 /**
  * How many colors the current terminal can render.
+ *
+ * `'none'` disables color output entirely (respected via `NO_COLOR` /
+ * `FORCE_COLOR=0`); styles such as bold/underline still apply.
  */
-export type ColorMode = 16 | 256 | 'truecolor';
+export type ColorMode = 16 | 256 | 'truecolor' | 'none';
 
 const ANSI16_RGB: [number, number, number][] = [
   [0, 0, 0], // black
@@ -321,6 +324,7 @@ export function resolveColorAdaptive(
   type: 'fg' | 'bg',
   mode: ColorMode,
 ): string | null {
+  if (mode === 'none') return null;
   const key = name.toLowerCase();
   const explicit256 = /^256:(\d{1,3})$/.exec(key);
   if (explicit256) {

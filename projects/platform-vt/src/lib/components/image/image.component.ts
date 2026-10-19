@@ -55,8 +55,8 @@ export function autoImageProtocol(
  * don't overwrite it:
  *
  * - **iTerm2** (default): OSC 1337 inline images.
- * - **kitty**: the kitty graphics protocol (transmit + place at the cell
- *   position, chunks of 4096 bytes).
+ * - **kitty**: the kitty graphics protocol (PNG only, transmitted with
+ *   `f=24` and chunked; JPEG/GIF need the iTerm2 or sixel path).
  * - **sixel**: the DEC sixel protocol — the source file must be a PPM P6
  *   image (plain raster, no decoder dependency); colors are quantized to a
  *   64-register palette.
@@ -142,7 +142,7 @@ export class ImageComponent {
       protocol = 'sixel';
     }
     if (protocol === 'kitty') {
-      this.emitKitty(buffer, widthPx, heightPx, el);
+      this.emitKitty(buffer, el);
       return;
     }
     if (protocol === 'sixel') {
@@ -173,14 +173,27 @@ export class ImageComponent {
    * position after the next render pass (the cursor must be positioned
    * there; the diff renderer repaints cells on flush).
    */
-  private emitKitty(buffer: Buffer, widthPx: number, heightPx: number, el: HTMLElement): void {
+  private emitKitty(buffer: Buffer, el: HTMLElement): void {
+    // The kitty protocol only understands PNG or raw RGBA (`f=32`). Sending
+    // raw JPEG/GIF bytes as f=32 would be rejected; require PNG.
+    const png = decodePng(buffer, { maxPixels: this.maxPixels() });
+    if (!png) {
+      throw new Error('kitty image protocol requires a PNG file');
+    }
+
     const payload = buffer.toString('base64');
     const chunkSize = 4096;
     const chunks: string[] = [];
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
       const last = i + chunkSize >= payload.length;
-      chunks.push(`\x1b_Ga=T,f=32,s=${widthPx},v=${heightPx},m=${last ? 0 : 1};${chunk}\x1b\\`);
+      // Control keys are sent only in the first chunk; continuation chunks
+      // carry `m` plus the payload.
+      chunks.push(
+        i === 0
+          ? `\x1b_Ga=T,f=24,s=${String(png.width)},v=${String(png.height)},m=${last ? 0 : 1};${chunk}\x1b\\`
+          : `\x1b_Gm=${last ? 0 : 1};${chunk}\x1b\\`,
+      );
     }
 
     const unregister = this.renderService.onFlush(() => {

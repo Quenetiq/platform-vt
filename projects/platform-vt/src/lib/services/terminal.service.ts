@@ -6,17 +6,13 @@ import {
   type CursorShape,
   type TerminalProgressState,
 } from '../output/ansi';
-
-/**
- * Color depth the terminal supports.
- */
-export type ColorMode = 16 | 256 | 'truecolor';
+import type { ColorMode } from '../output/color-map';
 
 /**
  * Detected terminal capabilities.
  */
 export interface TerminalCapabilities {
-  /** Color depth: 16, 256, or 24-bit truecolor. */
+  /** Color depth: 16, 256, 24-bit truecolor, or none. */
   colors: ColorMode;
   /** Whether the terminal is expected to render wide (CJK/emoji) glyphs. */
   unicode: boolean;
@@ -42,8 +38,22 @@ export function detectCapabilities(): TerminalCapabilities {
   const termProgram = process.env['TERM_PROGRAM'] ?? '';
   const colorterm = (process.env['COLORTERM'] ?? '').toLowerCase();
 
+  // FORCE_COLOR and NO_COLOR are explicit user overrides. FORCE_COLOR=0 and
+  // any non-empty NO_COLOR disable color entirely.
+  const forceColor = process.env['FORCE_COLOR'];
+  const noColor = process.env['NO_COLOR'];
   let colors: ColorMode;
-  if (colorterm === 'truecolor' || colorterm === '24bit') {
+  if (forceColor === '0') {
+    colors = 'none';
+  } else if (forceColor === '1') {
+    colors = 16;
+  } else if (forceColor === '2') {
+    colors = 256;
+  } else if (forceColor === '3') {
+    colors = 'truecolor';
+  } else if (noColor !== undefined) {
+    colors = 'none';
+  } else if (colorterm === 'truecolor' || colorterm === '24bit') {
     colors = 'truecolor';
   } else if (term.includes('256color') || term.includes('256')) {
     colors = 256;

@@ -3,6 +3,7 @@ import { Component, signal } from '@angular/core';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ImageComponent, autoImageProtocol } from './image.component';
@@ -19,10 +20,42 @@ import { cleanupDom } from '../../testing/cleanup-dom';
 @Component({
   selector: 'vt-image-host',
   imports: [ImageComponent],
-  template: `<vt-image [src]="src()" [width]="4" [height]="2" protocol="iterm2"></vt-image>`,
+  template: `<vt-image
+    [src]="src()"
+    [width]="4"
+    [height]="2"
+    [protocol]="protocol"
+    [maxBytes]="maxBytes"
+  ></vt-image>`,
 })
 class ImageHostComponent {
   readonly src = signal('');
+  protocol: 'auto' | 'iterm2' | 'kitty' | 'sixel' = 'iterm2';
+  maxBytes = 10 * 1024 * 1024;
+}
+
+/** Build a valid 1x1 RGBA PNG. */
+function tinyPng(): Buffer {
+  const pngChunk = (type: string, data: Buffer): Buffer => {
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    out.write(type, 4, 'ascii');
+    data.copy(out, 8);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header[8] = 8;
+  header[9] = 6;
+  header[12] = 0;
+  const scanline = Buffer.from([0, 10, 20, 30, 255]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(scanline)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 describe('ImageComponent', () => {
@@ -75,6 +108,56 @@ describe('ImageComponent', () => {
     expect(writes).toContain('height=32px');
     // Base64 of the PNG header.
     expect(writes).toContain('iVBORw0KGgo=');
+  });
+
+  it('emits a PNG through the kitty protocol with f=24', async () => {
+    const path = join(dir, 'kitty.png');
+    writeFileSync(path, tinyPng());
+
+    const fixture = TestBed.createComponent(ImageHostComponent);
+    fixture.componentInstance.protocol = 'kitty';
+    (fixture.nativeElement as HTMLElement).id = 'vt-root';
+    fixture.componentInstance.src.set(path);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+    TestBed.inject(RenderService).flush();
+
+    const writes = (terminal.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c) => String(c[0]))
+      .join('');
+    expect(writes).toContain('\x1b_Ga=T,f=24,s=1,v=1,m=0;');
+  });
+
+  it('rejects non-PNG files on the kitty protocol', async () => {
+    const path = join(dir, 'photo.jpg');
+    writeFileSync(path, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]));
+
+    const fixture = TestBed.createComponent(ImageHostComponent);
+    fixture.componentInstance.protocol = 'kitty';
+    (fixture.nativeElement as HTMLElement).id = 'vt-root';
+    fixture.componentInstance.src.set(path);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+    TestBed.inject(RenderService).flush();
+
+    const image = (fixture.nativeElement as HTMLElement).querySelector('vt-image')!;
+    expect(image.getAttribute('content')).toContain('[image:');
+  });
+
+  it('rejects files above maxBytes before reading', async () => {
+    const path = join(dir, 'large.png');
+    writeFileSync(path, Buffer.alloc(100, 1));
+
+    const fixture = TestBed.createComponent(ImageHostComponent);
+    fixture.componentInstance.maxBytes = 10;
+    (fixture.nativeElement as HTMLElement).id = 'vt-root';
+    fixture.componentInstance.src.set(path);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+    TestBed.inject(RenderService).flush();
+
+    const image = (fixture.nativeElement as HTMLElement).querySelector('vt-image')!;
+    expect(image.getAttribute('content')).toContain('[image:');
   });
 
   it('reserves grid space and falls back to a text placeholder on missing files', async () => {

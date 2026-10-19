@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { TerminalService } from './terminal.service';
+import { TerminalService, detectCapabilities } from './terminal.service';
 
 describe('TerminalService integrations', () => {
   let terminal: TerminalService;
@@ -14,6 +14,22 @@ describe('TerminalService integrations', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('honours NO_COLOR and FORCE_COLOR', () => {
+    vi.stubEnv('NO_COLOR', '1');
+    expect(detectCapabilities().colors).toBe('none');
+
+    vi.unstubAllEnvs();
+    vi.stubEnv('FORCE_COLOR', '0');
+    expect(detectCapabilities().colors).toBe('none');
+
+    vi.stubEnv('FORCE_COLOR', '2');
+    expect(detectCapabilities().colors).toBe(256);
+
+    vi.stubEnv('FORCE_COLOR', '3');
+    expect(detectCapabilities().colors).toBe('truecolor');
   });
 
   it('sets and restores the window title', () => {
