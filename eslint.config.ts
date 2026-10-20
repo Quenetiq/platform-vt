@@ -17,8 +17,7 @@ export default tseslint.config(
             'projects/platform-vt/output/public-api.ts',
             'projects/platform-vt/components/public-api.ts',
             'projects/platform-vt/services/public-api.ts',
-            'projects/platform-vt/testing/public-api.ts',
-            'projects/platform-vt/testing/src/harness.ts',
+
           ],
         },
         tsconfigRootDir: import.meta.dirname,

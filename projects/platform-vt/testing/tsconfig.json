@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@quenetiq/platform-vt": ["../src/public-api.ts"]
+    }
+  },
+  "include": ["public-api.ts", "src/**/*.ts"]
+}
